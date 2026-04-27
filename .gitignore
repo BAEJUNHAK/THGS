@@ -13,3 +13,8 @@ eval
 **/tmp
 models
 .pt
+# dataset (local download, not tracked)
+data/
+pretrained/
+ckpts/
+md/ramen_visualization/
