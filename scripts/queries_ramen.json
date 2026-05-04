@@ -1,0 +1,63 @@
+{
+  "L0": [
+    {"q": "bowl",           "gt": "bowl"},
+    {"q": "chopsticks",     "gt": "chopsticks"},
+    {"q": "corn",           "gt": "corn"},
+    {"q": "egg",            "gt": "egg"},
+    {"q": "eggs",           "gt": "egg"},
+    {"q": "glass of water", "gt": "glass of water"},
+    {"q": "hand",           "gt": "hand"},
+    {"q": "kamaboko",       "gt": "kamaboko"},
+    {"q": "nori",           "gt": "nori"},
+    {"q": "plate",          "gt": "plate"},
+    {"q": "sake cup",       "gt": "sake cup"},
+    {"q": "spoon",          "gt": "spoon"},
+    {"q": "wavy noodles",   "gt": "wavy noodles"}
+  ],
+  "L1": [
+    {"q": "yellow bowl",       "gt": "bowl"},
+    {"q": "wooden chopsticks", "gt": "chopsticks"},
+    {"q": "yellow corn",       "gt": "corn"},
+    {"q": "halved egg",        "gt": "egg"},
+    {"q": "two eggs",          "gt": "egg"},
+    {"q": "water glass",       "gt": "glass of water"},
+    {"q": "person hand",       "gt": "hand"},
+    {"q": "pink kamaboko",     "gt": "kamaboko"},
+    {"q": "dark nori",         "gt": "nori"},
+    {"q": "metal plate",       "gt": "plate"},
+    {"q": "metal cup",         "gt": "sake cup"},
+    {"q": "black spoon",       "gt": "spoon"},
+    {"q": "curly noodles",     "gt": "wavy noodles"}
+  ],
+  "L2": [
+    {"q": "bowl rim",       "gt": null},
+    {"q": "chopstick tip",  "gt": null},
+    {"q": "egg yolk",       "gt": null},
+    {"q": "egg white",      "gt": null},
+    {"q": "glass rim",      "gt": null},
+    {"q": "fingertips",     "gt": null},
+    {"q": "kamaboko swirl", "gt": null},
+    {"q": "nori edge",      "gt": null},
+    {"q": "plate rim",      "gt": null},
+    {"q": "cup rim",        "gt": null},
+    {"q": "spoon handle",   "gt": null},
+    {"q": "noodle strand",  "gt": null},
+    {"q": "water",          "gt": null},
+    {"q": "bottle",         "gt": null}
+  ],
+  "L5": [
+    {"q": "An object containing noodles and various toppings on a table with sloping edges.", "gt": "bowl"},
+    {"q": "A pair of utensils for holding food next to a yellow bowl.", "gt": "chopsticks"},
+    {"q": "Corn kernels placed in a bowl, blended with the ingredients, floating on the surface.", "gt": "corn"},
+    {"q": "The half of the egg next to the seaweed with the white evenly wrapped around the orange yolk.", "gt": "egg"},
+    {"q": "Slices cut evenly in half down the center, above the ramen noodles.", "gt": "egg"},
+    {"q": "A container with water resting on wooden tabletop and near wall.", "gt": "glass of water"},
+    {"q": "Presented in a light grip and displaying the natural texture of the knuckles is a hand.", "gt": "hand"},
+    {"q": "Smooth slices with a delicate spiral pattern featuring a swirl pattern.", "gt": "kamaboko"},
+    {"q": "Long, dark green seaweed flakes placed against the side of the bowl.", "gt": "nori"},
+    {"q": "A metal utensil that is convenient for holding cutlery, located on a wooden table and below the yellow bowl.", "gt": "plate"},
+    {"q": "A drinking utensils with a smooth surface near a sake bottle.", "gt": "sake cup"},
+    {"q": "The long one on the tray.", "gt": "spoon"},
+    {"q": "Slender strips of food in the center of the bowl, mixed with toppings.", "gt": "wavy noodles"}
+  ]
+}
