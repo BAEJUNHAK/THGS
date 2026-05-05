@@ -9,14 +9,16 @@ OUTPUT (drop-in compatible with image_encoding.py / encode_fastsam_clip.py):
                                                     or all if --pixel_all; downsized to max 256)
 
 BACKENDS:
-    --backend tfhub   Use TF Hub OpenSeg-aligned (default). Requires
-                      `pip install tensorflow tensorflow_hub`. The official model
-                      `https://tfhub.dev/google/openseg-aligned/0` is gated; you may
-                      need to provide --openseg_url pointing to your own mirror or
-                      a local SavedModel directory. The wrapper auto-detects whether
-                      it received a URL, a tar.gz, or a local SavedModel dir.
-    --backend stub    Random RGB→768 projection (deterministic). Useful for verifying
-                      the full notebook plumbing end-to-end without the real model.
+    --backend dense_clip  (DEFAULT, recommended)
+                          PyTorch-only. OpenCLIP ViT-B/16 visual tower → patch token grid
+                          (21×21×512 @ 336 input). NOT a literal OpenSeg port, but
+                          produces dense CLIP-aligned features without TF dependency.
+                          Use this when the original Google TF Hub OpenSeg model is
+                          unavailable (Google removed `openseg-aligned/0` from TF Hub).
+    --backend tfhub       Loads OpenSeg via tensorflow_hub.load(--openseg_url).
+                          The default URL is dead; supply --openseg_url to your own
+                          mirror or local SavedModel directory.
+    --backend stub        Random RGB→768 projection (deterministic). Plumbing test only.
 
 APPROXIMATION NOTES (read before treating numbers as canonical):
   * The mask proposer is FastSAM (B-arm parity). The OpenSeg paper uses its own
@@ -120,8 +122,72 @@ class OpenSegTFHub:
         return feat.astype(np.float32)         # (Hp, Wp, D)
 
 
+class MaskCLIPDense:
+    """PyTorch-only dense CLIP-aligned feature extractor.
+
+    Replaces external OpenSeg with OpenCLIP ViT visual tower's patch tokens.
+    NOT a literal OpenSeg port — but it produces dense pixel-aligned features
+    in the CLIP space, which is the property we actually need for arm C.
+
+    For ViT-B/16 @ 336 input: returns (21, 21, 512) per image.
+    """
+    def __init__(self, model_name='ViT-B-16',
+                 pretrained='laion2b_s34b_b88k', input_size=336):
+        import torch
+        import open_clip
+        model, _, _ = open_clip.create_model_and_transforms(
+            model_name, pretrained=pretrained, precision='fp16',
+        )
+        model.eval()
+        self.model = model.to('cuda')
+        self.visual = self.model.visual
+        self.input_size = input_size
+        self.torch = torch
+        self.mean = torch.tensor([0.48145466, 0.4578275, 0.40821073],
+                                 device='cuda').view(1, 3, 1, 1)
+        self.std = torch.tensor([0.26862954, 0.26130258, 0.27577711],
+                                device='cuda').view(1, 3, 1, 1)
+
+    def __call__(self, rgb_uint8_HW3):
+        torch = self.torch
+        F = torch.nn.functional
+        x = torch.from_numpy(rgb_uint8_HW3).permute(2, 0, 1).unsqueeze(0)
+        x = x.float().to('cuda') / 255.0
+        x = F.interpolate(x, size=(self.input_size, self.input_size),
+                          mode='bilinear', align_corners=False)
+        x = (x - self.mean) / self.std
+        x = x.half()
+        with torch.no_grad():
+            v = self.visual
+            tokens = v.conv1(x)                       # (1, D, hp, wp)
+            B, D, hp, wp = tokens.shape
+            tokens = tokens.flatten(2).transpose(1, 2)  # (1, hp*wp, D)
+            cls = v.class_embedding.to(tokens.dtype) \
+                   .unsqueeze(0).unsqueeze(0).expand(B, 1, -1)
+            tokens = torch.cat([cls, tokens], dim=1)
+            n_tok = tokens.shape[1]
+            pos = v.positional_embedding[:n_tok].to(tokens.dtype)
+            tokens = tokens + pos
+            tokens = v.ln_pre(tokens)
+            # OpenCLIP transformer expects (L, N, D) by default unless batch_first=True
+            if hasattr(v.transformer, 'batch_first') and v.transformer.batch_first:
+                tokens = v.transformer(tokens)
+            else:
+                tokens = tokens.permute(1, 0, 2)
+                tokens = v.transformer(tokens)
+                tokens = tokens.permute(1, 0, 2)
+            tokens = v.ln_post(tokens)
+            patch_tokens = tokens[:, 1:, :]               # drop CLS
+            if v.proj is not None:
+                patch_tokens = patch_tokens @ v.proj.to(tokens.dtype)
+        feat = patch_tokens[0].reshape(hp, wp, -1).float().cpu().numpy()
+        return feat
+
+
 def make_openseg_backend(backend: str, model_url: Optional[str]):
-    if backend == 'tfhub':
+    if backend == 'dense_clip':
+        return MaskCLIPDense()
+    elif backend == 'tfhub':
         return OpenSegTFHub(model_url or 'https://tfhub.dev/google/openseg-aligned/0')
     elif backend == 'stub':
         return OpenSegStub(dim=768)
@@ -259,7 +325,11 @@ def main():
     parser.add_argument('--fastsam_ckpt', type=str, default='ckpts/FastSAM-x.pt')
     parser.add_argument('--feat_subdir', type=str, default='language_features_openseg')
     parser.add_argument('--timing_csv', type=str, default=None)
-    parser.add_argument('--backend', choices=['tfhub', 'stub'], default='tfhub')
+    parser.add_argument('--backend', choices=['dense_clip', 'tfhub', 'stub'],
+                        default='dense_clip',
+                        help='dense_clip: PyTorch OpenCLIP ViT patch tokens (default, no extra deps); '
+                             'tfhub: real OpenSeg via TF Hub (requires --openseg_url to a working mirror); '
+                             'stub: random projection (plumbing only)')
     parser.add_argument('--openseg_url', type=str, default=None,
                         help='URL or local SavedModel dir for tfhub backend')
     parser.add_argument('--pixel_frames', nargs='*', default=None,
