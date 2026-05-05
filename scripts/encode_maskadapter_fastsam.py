@@ -65,12 +65,13 @@ PIXFEAT_MAX_DIM = 256
 class ConvNeXtLDense:
     """Full-image dense ConvNeXt-L feature extractor.
 
-    For convnext_large_d_320 with timm_pool="" (the OpenCLIP default for this model),
-    visual.forward(x) returns spatial tokens with shape (B, S, 768) where S = (input/32)^2.
-    For 320 input we get S = 100 → 10×10 dense grid.
+    OpenCLIP's `convnext_large_d_320` has the timm trunk do internal global pooling
+    (trunk forward returns (B, 1536) post-pool). To get spatial features we use the
+    standard timm convention `trunk.forward_features(x)` which always returns the
+    pre-pool spatial map (B, C, H, W). Then we apply OpenCLIP's head (Mlp/Linear)
+    per-spatial-location to get (B, H, W, embed_dim).
 
-    If a different OpenCLIP version returns (B, 768, H, W) or globally-pooled (B, 768),
-    we handle both via runtime shape detection (with fallback hook on trunk output).
+    For 320 input → ConvNeXt-L stride 32 → 10×10 dense grid × 768-D.
     """
     def __init__(self, input_size=CONVNEXT_INPUT,
                  model_name=CONVNEXT_NAME, pretrained=CONVNEXT_PRETRAIN):
@@ -85,101 +86,66 @@ class ConvNeXtLDense:
                                  device='cuda').view(1, 3, 1, 1)
         self.std = torch.tensor([0.26862954, 0.26130258, 0.27577711],
                                 device='cuda').view(1, 3, 1, 1)
+        if not hasattr(self.visual, 'trunk') or not hasattr(self.visual.trunk, 'forward_features'):
+            raise RuntimeError(
+                "OpenCLIP ConvNeXt visual lacks `trunk.forward_features` — "
+                "incompatible model or OpenCLIP version."
+            )
 
-        # Hook on trunk output for fallback (when full visual returns globally-pooled).
-        self._trunk_out = None
-        try:
-            self.visual.trunk.register_forward_hook(self._capture_trunk)
-            self._has_trunk = True
-        except AttributeError:
-            self._has_trunk = False
-
-    def _capture_trunk(self, mod, inp, out):
-        self._trunk_out = out
-
-    @torch.no_grad()
-    def __call__(self, rgb_uint8_HW3):
-        """Returns (Hp, Wp, 768) np.float32 dense feature map."""
+    def _preprocess(self, rgb_uint8_HW3):
         x = torch.from_numpy(rgb_uint8_HW3).permute(2, 0, 1).unsqueeze(0)
         x = x.float().to('cuda') / 255.0
         x = F.interpolate(x, size=(self.input_size, self.input_size),
                           mode='bilinear', align_corners=False)
-        x = ((x - self.mean) / self.std).half()
+        return ((x - self.mean) / self.std).half()
 
-        out = self.visual(x)  # also triggers trunk hook
-
-        feat = self._reshape_dense(out)
-        if feat is None and self._has_trunk and self._trunk_out is not None:
-            feat = self._fallback_from_trunk(self._trunk_out)
-        if feat is None:
+    @torch.no_grad()
+    def __call__(self, rgb_uint8_HW3):
+        """Returns (Hp, Wp, 768) np.float32 dense feature map."""
+        x = self._preprocess(rgb_uint8_HW3)
+        # Spatial features: bypass trunk's internal global_pool.
+        spatial = self.visual.trunk.forward_features(x)
+        if spatial.dim() != 4:
             raise RuntimeError(
-                f"Could not extract dense ConvNeXt-L features. "
-                f"visual(x) returned shape {tuple(out.shape)}; "
-                f"trunk hook returned shape "
-                f"{tuple(self._trunk_out.shape) if self._trunk_out is not None else None}. "
-                "This OpenCLIP version's convnext_large_d_320 may pool globally; "
-                "try a different model or report this configuration."
+                f"trunk.forward_features returned shape {tuple(spatial.shape)}, "
+                "expected 4D (B, C, H, W). Incompatible model."
             )
-        return feat
+        B, C, H, W = spatial.shape
 
-    def _reshape_dense(self, out):
-        """Try to interpret visual(x) output as a dense spatial map."""
-        if out.dim() == 3:
-            B, S, D = out.shape
-            if B != 1:
-                return None
-            Hp = int(round(S ** 0.5))
-            if Hp * Hp != S:
-                return None
-            return out[0].reshape(Hp, Hp, D).float().cpu().numpy()
-        if out.dim() == 4:
-            # (B, D, H, W)
-            B, D, Hp, Wp = out.shape
-            if B != 1:
-                return None
-            return out[0].permute(1, 2, 0).float().cpu().numpy()
-        return None  # 2D = globally pooled, can't recover dense from this alone
+        # (B, C, H, W) → (B*H*W, C) for per-token head application
+        flat = spatial.permute(0, 2, 3, 1).contiguous().reshape(B * H * W, C)
 
-    def _fallback_from_trunk(self, trunk_out):
-        """Apply head sub-modules manually, skipping pooling, when visual(x) was pooled.
+        # Apply OpenCLIP head to each spatial token.
+        # Try the whole head first (works when head has only Linear/Mlp/Dropout).
+        try:
+            out = self.visual.head(flat)
+        except Exception as e_full:
+            # Iterate sub-modules, skipping anything that breaks on flat input
+            # (pool / flatten / rearrange layers).
+            out = flat
+            applied = 0
+            for name, mod in self.visual.head.named_children():
+                cls = type(mod).__name__.lower()
+                if any(k in cls for k in ['pool', 'flatten', 'rearrange']):
+                    continue
+                try:
+                    out = mod(out); applied += 1
+                except Exception:
+                    pass
+            if applied == 0:
+                raise RuntimeError(
+                    f"Could not apply OpenCLIP head per-token. "
+                    f"Original error: {e_full}"
+                )
 
-        Heuristic: walk through visual.head's children in order. Skip anything that
-        looks like a pooling layer (AdaptiveAvgPool2d, AvgPool2d, etc.). Apply the
-        rest. End with shape (B, S, D) or (B, D, H, W).
-        """
-        if trunk_out.dim() != 4:
-            return None
-        x = trunk_out          # (B, C, H, W)
-        head = getattr(self.visual, 'head', None)
-        if head is None:
-            # No head → trunk output is the dense feature (no projection).
-            B, C, Hp, Wp = x.shape
-            return x[0].permute(1, 2, 0).float().cpu().numpy()
-        for name, mod in head.named_children():
-            cls = type(mod).__name__.lower()
-            mod_str = str(mod).lower()
-            if any(p in cls for p in ['adaptiveavgpool', 'avgpool', 'maxpool']):
-                continue
-            try:
-                x = mod(x)
-            except Exception:
-                # Try common shape transforms
-                if x.dim() == 4 and 'flatten' in cls:
-                    x = x.flatten(2)
-                elif x.dim() == 3 and 'rearrange' in cls:
-                    x = x.transpose(1, 2)
-                else:
-                    raise
-        # Now x should be (B, S, D) or similar
-        if x.dim() == 3:
-            B, S, D = x.shape
-            Hp = int(round(S ** 0.5))
-            if Hp * Hp != S:
-                return None
-            return x[0].reshape(Hp, Hp, D).float().cpu().numpy()
-        if x.dim() == 4:
-            return x[0].permute(1, 2, 0).float().cpu().numpy()
-        return None
+        if out.dim() != 2 or out.shape[0] != B * H * W:
+            raise RuntimeError(
+                f"head output shape {tuple(out.shape)} unexpected. "
+                f"Expected ({B * H * W}, embed_dim)."
+            )
+
+        out = out.reshape(B, H, W, -1)
+        return out[0].float().cpu().numpy()
 
 
 # ---- Per-image pipeline ----
