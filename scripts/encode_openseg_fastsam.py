@@ -292,7 +292,13 @@ def downsize_pixel_feat(feat_HWD, max_dim=PIXFEAT_MAX_DIM):
         return feat_HWD
     scale = max_dim / max(H, W)
     Hn, Wn = int(round(H * scale)), int(round(W * scale))
-    return cv2.resize(feat_HWD, (Wn, Hn), interpolation=cv2.INTER_LINEAR)
+    if D <= 4:
+        return cv2.resize(feat_HWD, (Wn, Hn), interpolation=cv2.INTER_LINEAR)
+    # cv2.resize is capped at 4 channels — use torch for high-D feature maps.
+    t = torch.from_numpy(feat_HWD).permute(2, 0, 1).unsqueeze(0)   # (1, D, H, W)
+    t = torch.nn.functional.interpolate(t, size=(Hn, Wn),
+                                        mode='bilinear', align_corners=False)
+    return t.squeeze(0).permute(1, 2, 0).contiguous().numpy()
 
 
 def save_one(save_path, feats_per_level, seg_per_level, pixel_feat=None,
