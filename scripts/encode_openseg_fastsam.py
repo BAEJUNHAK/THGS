@@ -197,28 +197,41 @@ def make_openseg_backend(backend: str, model_url: Optional[str]):
 
 # ---- Mask average pooling on (H, W, D) feature map ----
 
-def avg_pool_per_mask(feat_HWD: np.ndarray, masks_list, target_HW):
-    """For each SAM-style mask dict in masks_list, return the L2-normalized average
-    of feat_HWD inside the mask. feat_HWD is resized to target_HW first.
-    Returns (n, D) torch.float16 + segmap (H, W) int32 (consecutive ids, -1 bg).
+def avg_pool_per_mask(feat_HpWpD: np.ndarray, masks_list, target_HW):
+    """For each SAM-style mask, return the L2-normalized average of dense pixel
+    features inside the mask.
+
+    Instead of upsampling the high-dim feature to image resolution (cv2.resize is
+    limited to 4 channels and torch upsampling on (H, W, 768) costs ~1GB), we map
+    each mask pixel to its containing feature cell via integer division and average
+    feat values weighted by mask-pixel count per cell — equivalent to nearest-neighbor
+    upsampling of feat followed by mean over mask pixels.
+
+    Args:
+        feat_HpWpD: (Hp, Wp, D) low-res dense feature map (e.g. 10×10×768 from ConvNeXt-L)
+        masks_list: SAM-style mask dicts with 'segmentation' (H, W) bool
+        target_HW : (H, W) image resolution
+
+    Returns: (n, D) torch.float16 + seg_map (H, W) int32 (consecutive ids, -1 bg).
     """
     H, W = target_HW
-    D = feat_HWD.shape[-1]
-    if feat_HWD.shape[:2] != (H, W):
-        feat = cv2.resize(feat_HWD, (W, H), interpolation=cv2.INTER_LINEAR)
-    else:
-        feat = feat_HWD
-    # Pre-flatten for speed
-    feat_flat = feat.reshape(-1, D)
+    Hp, Wp, D = feat_HpWpD.shape
+    feat_flat = feat_HpWpD.reshape(-1, D)            # (Hp*Wp, D)
     seg_map = -np.ones((H, W), dtype=np.int32)
     embs = []
     for m in masks_list:
         seg = m['segmentation']
         if seg.shape != (H, W):
-            seg = cv2.resize(seg.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST).astype(bool)
+            seg = cv2.resize(seg.astype(np.uint8), (W, H),
+                             interpolation=cv2.INTER_NEAREST).astype(bool)
         if seg.sum() == 0:
             continue
-        idx = np.where(seg.flatten())[0]
+        ys, xs = np.where(seg)
+        yp = (ys.astype(np.float32) * Hp / H).astype(np.int32)
+        xp = (xs.astype(np.float32) * Wp / W).astype(np.int32)
+        np.clip(yp, 0, Hp - 1, out=yp)
+        np.clip(xp, 0, Wp - 1, out=xp)
+        idx = yp * Wp + xp
         v = feat_flat[idx].mean(axis=0)
         n = np.linalg.norm(v) + 1e-9
         embs.append((v / n).astype(np.float16))
