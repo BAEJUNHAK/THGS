@@ -66,18 +66,58 @@ Taxonomy 가 도출하는 예측 (빗나가면 taxonomy 수정 대상이며 그�
 
 **Method 사양서로의 변환 (v1.1)**: R11 적중 시 각 행이 설계 제약으로 확정 — R11-a/b → "robust 통계 성분 불채택" 의 실측 근거, R11-c → "view 선택에는 가드 필수" = P2 가드 재설계의 정량 motivation, R11-d → 표 B 에서 우리 method 만 통과하는 차별화 라인.
 
-## 4. 결과 (실험 후 기입)
+## 4. 결과 (2026-06-12 실행 — P1-A 완료)
 
-*(P1 실행 후 업데이트 — rank 표, mask 표, R11 판정, plot 링크)*
+**충실도 gate: 양 method 0 mismatch** (in-harness mean baseline rank = 진단 CSV oracle_rank, 67/67 정확 일치 × 2) — 이하 모든 비교 유효.
 
-## 5. Paper related-work 표 초안 (§2.5 용 = 표 A)
+### Rank-level (phantom 회복 / easy 역행, 회복: base>3→rule≤3, 역행: base≤3→rule>3)
 
-| 처방 family | 대표 논문 | 다루는 원인 (taxonomy) | 못 다루는 원인 | 측정 ceiling (부검) |
+| Rule | THGS ph 17 rec | THGS easy 41 reg | ReLaGS ph 20 rec | ReLaGS easy 43 reg |
 |---|---|---|---|---|
-| Robust 통계 (median/outlier 제거) | VALA, ReLaGS-ROFA | (이론상) outlier view | **coherent-plausible 경쟁자, 소수파 매장** | ROFA: 구출 1/20 (실측) / median: CA-1 |
-| View 선택 (bag/top-k) | Beyond Averages | 소수파 매장 (phantom) | **제로섬 — lucky-view jump (easy)** | top-5: +19.9 ↔ −9.8 (실측) |
-| 표현/구조 교체 | Polysemy, Segment-then-Splat | dilution 일부 | few-view opportunist, 다의미 외 confusion | 직접 비교 불가 (명시) |
-| **진단-설계 (ours)** | 가드된 hybrid | 케이스→신호 1:1 매핑 | easy 가드 미완 (P2) | +3.74pt held-out |
+| top5 (bag, 기측정 재현) | +6 | −10 | +8 | −12 |
+| **qmax1 (CA-2, bag 순수형)** | +3 | −10 | +4 | −14 |
+| **gm_u (CA-1 unweighted)** | +1 | **−12** | +2 | **−9** |
+| **gm_w (CA-1 weighted)** | +1 | −4 | +3 | −3 |
+| **gm_g (CA-1 +gating)** | +1 | −2 | +5 | −4 |
+| (참고: ours hybrid v2, Stage 4) | (mask) +17.5pt | −4.08pt | — | — |
+
+데이터: [ca1_gm_ranks_{thgs,relags}.csv](../../../output/diagnostics/ca1_gm_ranks_thgs.csv), [ca2_qmax_ranks_{thgs,relags}.csv](../../../output/diagnostics/ca2_qmax_ranks_thgs.csv), 로그 logs/p1a_autopsy.log
+
+### R11 판정 (사전등록 §3 그대로, 빗나감 포함 정직 기록)
+
+| ID | 사전 예측 | 실측 | 판정 |
+|---|---|---|---|
+| **R11-a** | median phantom 회복 THGS ≤3 AND ReLaGS ≤4 | THGS 1/1/1 ✅·ReLaGS 2/3/**5** | **부분 적중** — median 본체 (u/w) 적중, gating 변형 (gm_g) 이 ReLaGS 에서 5/20 로 경계 +1 초과. family 결론 (회복 무력: 최대 25% vs top5 40%) 은 유지 |
+| **R11-b** | median 은 안전 (easy 역행 ≤2) | gm_u **−12/−9**, gm_w −4/−3, gm_g −2/−4 | **빗나감 — 예측보다 더 나쁨**: median 은 무익할 뿐 아니라 unweighted 는 명백히 유해. uniform-mean 의 교훈 (visibility weighting 필수, Stage 3.2 B1.B) 이 median 에도 그대로 적용 |
+| **R11-c** | qmax1 = 제로섬 극단화 (rec ≥ top5 AND reg > top5) | rec **3<6 / 4<8** ❌, reg 10=10 / **14>12** 절반 | **빗나감 (회복 절)** — 순수 bag (k=1) 은 회복도 *더 적음*. 법칙 ③ 수정: 제로섬은 유지되나 k=1 에선 양쪽 다 악화 (단일 view 노이즈) — Stage 3.2 k-sweep 과 정합 |
+| **R11-d** | mask 에서 어떤 변형도 R9 bar 통과 불가 | *(mask eval 결과 기입란 — 아래)* | — |
+
+**종합 (사전등록 판정 문구 적용)**: R11-c 빗나감 → "법칙 ③ 수정 + 정직 보고" 경로. **단 모든 빗나감의 방향이 '경쟁 처방이 예측보다 더 나쁘다'** — robust 통계 family 는 유해하기까지 하고, bag 의 순수형은 회복조차 약함. 표 A 의 결론 (어떤 family 도 phantom-easy 동시 보존 불가) 은 약화가 아니라 강화됨. 예측 적중 주장은 "정량 경계 일부 빗나감, 방향성·family-수준 결론 전부 적중" 으로 정확하게 표현할 것.
+
+### R11-d — mask-level (THGS, 208쌍 → per-prompt 67 평균) ✅ **적중: 전 변형 FAIL**
+
+재현 gate: baseline per-prompt 0.5424 — stage3_3 과 **prompt 별 차이 0.0** (render 재현 완벽). [p1a_mask_iou.csv](../../../output/diagnostics/p1a_mask_iou.csv)
+
+| Rule | full-67 | phantom17 | easy 41 | R9 bar |
+|---|---|---|---|---|
+| baseline | 0.5424 | 0.2029 | 0.7396 | — |
+| top5 (bag) | 0.5415 (−0.1pt) | **0.4015 (+19.9pt)** | 0.6416 (−9.8pt) | FAIL (제로섬, stage3_3 정확 재현) |
+| qmax1 (bag 순수형) | 0.4444 (−9.8pt) | 0.2212 | 0.5667 (−17.3pt) | FAIL |
+| gm_u | 0.4349 (−10.8pt) | 0.1540 | 0.5910 | FAIL (유해) |
+| gm_w | 0.5306 (−1.2pt) | 0.2025 (±0) | 0.7199 | FAIL |
+| gm_g | 0.5454 (+0.3pt) | 0.1852 (**−1.8pt**) | **0.7513 (+1.2pt)** | FAIL (phantom 무개선) |
+| (ours, Stage 4 held-out) | **+3.74pt** | **+17.5pt** | −4.08pt | PARTIAL (유일 headline 통과) |
+
+**표 A 의 핵심 구도가 mask 수준에서 확정**: robust 통계의 최선 (gm_g) 은 *easy 는 지키지만 phantom 에 눈멂* (+1.2 / −1.8), view 선택의 최선 (top5) 은 *phantom 은 살리지만 easy 를 죽임* (+19.9 / −9.8) — **두 family 는 거울상의 절반짜리 처방**이고, 둘을 합치는 가드된 hybrid 만이 headline 을 넘는다 (easy 가드는 우리도 미완 — P2 과제로 정직 병기).
+
+## 5. Paper related-work 표 (§2.5 용 = 표 A, 측정치 반영 — 2026-06-12)
+
+| 처방 family | 대표 논문 | 다루는 원인 (taxonomy) | 못 다루는 원인 | **측정 ceiling (부검 실측)** |
+|---|---|---|---|---|
+| Robust 통계 (median/outlier 제거) | VALA, ReLaGS-ROFA | (이론상) outlier view — 실측상 easy 보존만 (gm_g easy +1.2pt) | **coherent-plausible 경쟁자, 소수파 매장** — phantom 회복 1~5/37, mask 0 | ROFA 구출 1/20 · gm_g full **+0.3pt / phantom −1.8pt** · unweighted 는 유해 (easy −12/−9) |
+| View 선택 (bag/top-k) | Beyond Averages | 소수파 매장 (phantom +19.9pt) | **제로섬 — lucky-view jump (easy −9.8pt)**; 순수형 (k=1) 은 회복마저 반감 | top5 full **−0.1pt** · qmax1 full **−9.8pt** |
+| 표현/구조 교체 | Polysemy, Segment-then-Splat | dilution 일부 | few-view opportunist, 다의미 외 confusion | 직접 비교 불가 (object-당-1-vector 가정 공유 명시) |
+| **진단-설계 (ours)** | 가드된 hybrid | 케이스→신호 1:1 매핑 | easy 가드 미완 (P2 + P1-B 의 top1-conf 신호 채택 예정) | **+3.74pt held-out (유일 headline 통과)** |
 
 ## 6. 업데이트 로그
 
@@ -86,3 +126,4 @@ Taxonomy 가 도출하는 예측 (빗나가면 taxonomy 수정 대상이며 그�
 | 2026-06-12 | 초기 작성 | 카탈로그 C1–C7, 부검 가능성 분류, CA-1/CA-2 설계, R11 사전등록. CA-2 가 Stage 3.3+5 로 기측정임을 확인 — 신규 본체는 CA-1 (geometric median) |
 | 2026-06-12 | **v1.1** | md/hypotheses/ 로 통합. "부검 = method 요구사항 명세" 역할 명시, R11 → 설계 제약 변환 표 추가 |
 | 2026-06-12 | **v1.2** | 이 문서 = **P1-A**. P1 이 문제 구체화 phase 전체로 확장됨에 따라 P1-B (부재 쿼리)/C (E1)/D (E2)/E (VALA·StS 코드 직접 실험) 는 [p1_problem_experiments.md](p1_problem_experiments.md) 로 — C1 (VALA)/C5 (StS) 의 "포지셔닝만" 한계는 P1-E 가 추후 해소 예정 |
+| 2026-06-12 | **P1-A 실행 완료** | gate 0 mismatch ×2 + mask 재현 차이 0.0. **R11-a 부분 적중** (median 본체 적중, gm_g 가 ReLaGS 5/20 경계 초과) · **R11-b 빗나감 (예측보다 나쁨** — unweighted median 유해 −12/−9**)** · **R11-c 빗나감 (회복 절** — k=1 은 회복도 반감**)** · **R11-d 적중 (전 변형 R9 bar FAIL)**. 거울상 구도 확정: robust=easy만 (gm_g +1.2/−1.8), selection=phantom만 (top5 +19.9/−9.8). §4·§5 표 기입 |

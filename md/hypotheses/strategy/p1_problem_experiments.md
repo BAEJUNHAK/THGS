@@ -103,12 +103,60 @@ P1-D (E2: NAG 사슬 rank → 3분기 판정)
 - **왜**: P1-A 는 family-수준 faithful rule 부검 — P1-E 는 이를 **per-paper 전체 파이프라인 실측**으로 격상. "VALA 도 ~30% phantom" 이 실측되면 paradigm 주장이 3-4 method 로 확장.
 - **비용/리스크**: env 구축 + 학습/최적화 (VALA 는 feature field 최적화, StS 는 per-object 최적화 — GPU 일 단위), sm_120 호환성 리스크 (opensplat3d 셋업 경험 재사용). **P1-A~D 결과 리뷰 후 별도 사전등록으로 진행.**
 
-## 6. 결과 (실험 후 기입)
+## 6. 결과 (2026-06-12 실행 완료 — P1-B/C/D)
 
-*(P1-A 는 competitor_autopsy.md §4 에, P1-B/C/D 는 여기에 — rank/score 표, R13 판정, E1 pattern 표, E2 3분기, plot 링크)*
+### P1-B 부재 쿼리 — R13 판정 (a/b/c 전부 빗나감, **c-분기 발동 = P2 가드 신호 확보**)
+
+부재 어휘 120개 (scene당 30: near_curated 3 + absent_safe ~27, [p1b_absence_vocab.csv](../../../output/diagnostics/p1b_absence_vocab.csv)), 4 rule × 2 method, [p1b_absence_scores.csv](../../../output/diagnostics/p1b_absence_scores.csv):
+
+| 측정 | THGS | ReLaGS |
+|---|---|---|
+| confident-hit (mean) | **12.5%** | **12.5%** |
+| confident-hit (top5 / gm_w / hybrid) | 4.2 / 10.0 / 3.3% | 4.2 / 10.0 / 5.0% |
+| AUROC margin(mean) | 0.621 | **0.525 (≈random)** |
+| AUROC **top1-conf(mean)** | **0.836** | **0.848** |
+| AUROC agree(mean,top5) | 0.625 | 0.684 |
+| **ghost(zero-norm)-as-top1 on absent** (plain mean) | **41.7%** | **29.2%** |
+
+| ID | 예측 | 실측 | 판정 |
+|---|---|---|---|
+| R13-a | mean confident-hit ≥ 40% | 12.5% | **빗나감** — 점수 분포 중첩은 예상보다 작음 |
+| R13-b | top5 가 부재에서 더 자신 | 4.2% < 12.5% (역전) | **빗나감** — lucky-view 는 easy 의 문턱(q25 0.59→0.71)을 더 끌어올림 |
+| R13-c | 기존 신호 AUROC < 0.8 (모두) | top1-conf **0.836/0.848 ≥ 0.8** | **빗나감 → 사전등록 c-분기 발동**: "해당 신호가 이미 충분 → P2 에 채택" — **mean top-1 절대 confidence 가 있/없 분리자** |
+
+**해석 (정직)**: ① 시스템은 abstention 장치가 아예 없으므로 부재 쿼리에도 *항상* top-3 mask 를 반환 — 그 top-1 의 30~42% 가 zero-norm 유령 (canon(0)=0.5 가 실제 SP 들을 이김; D1 메커니즘의 부재-쿼리 버전, **신규 발견**). ② 그러나 점수 자체에는 분리 신호가 있다 (top1-conf AUROC 0.84) — 어떤 paper 도 쓰지 않는 공짜 신호. ③ **margin 은 부재 분리에도 무력 (0.52~0.62)** — Stage 4 g2 가드 실패와 같은 뿌리 (canon 포화) 의 세 번째 증상. 표 A 의 A2층 주장은 "score 가 맹목" 이 아니라 **"score 는 신호를 갖고 있으나 현 paradigm 의 어떤 단계도 그것을 쓰지 않는다 (항상-반환 + 유령 + margin 포화)"** 로 정밀화.
+
+### P1-C E1 direction bias — **negative finding (사전등록 rule 그대로)**
+
+[p1c_e1_directions.csv](../../../output/diagnostics/p1c_e1_directions.csv) (pooled n=41), [p1c_e1_patterns.csv](../../../output/diagnostics/p1c_e1_patterns.csv):
+
+- P1 small→bg: effect 0.0, p=1.0 (pooled/method 전부 ns). P2 food→vessel·P4 transparent: **insufficient_n** (3/0건). P1+P4 합산도 ns. P3 nearest-figurine: 방향은 예측과 일치 (effect +0.092/+0.107) 하나 **p=0.224/0.168 ns**.
+- **판정: significant 0개 → negative finding, appendix 행** (카탈로그 §3 decision rule). paper 방향을 B1 로 전환 — *이미 Stage 3.x 가 그 길을 갔음을 사후 확인*.
+- **기계적 원인 (신규)**: direction vector (c) 의 LVIS top-5 가 전 phantom 에서 거의 동일 (cap/ginger/pop/trunk…) — **f_agg − f_text 는 CLIP modality gap 방향에 지배**되어 category-level bias 를 볼 수 없음. (a) aggregated 자체의 vessel 37% 는 bias 가 아니라 content. → E1 의 negative 는 "bias 없음" 과 "이 operationalization 으로는 안 보임" 의 OR — 둘 다 paper 에 정직 기록.
+
+### P1-D E2 계층 전파 — 사전 예측 ① 적중 / ② 미달
+
+[p1d_e2_hierarchy.csv](../../../output/diagnostics/p1d_e2_hierarchy.csv) (within-level best-chain-member rank ≤3 기준):
+
+| | amplification | propagation | wash_out | all_good |
+|---|---|---|---|---|
+| THGS phantom 21 | 4 | 9 | 6 | 2 |
+| ReLaGS phantom 20 | 3 | 6 | 7 | 4 |
+| **pooled 41** | **17%** | **37%** | **32%** | 15% |
+| easy (41/43) | 3/2 | 0 | 17/11 | 21/30 |
+
+- **① propagation ≥ wash_out: 37% ≥ 32% ✅ 적중** — 계층은 phantom 을 못 고친다 (상위도 같은 평균 기계).
+- **② amplification 17% < 20% → no promotion** (경계 3%p 미달, 정직 보고). 단 **tesla door handle 은 양 method 에서 amplification** (L2 rank 1 인데 L1 100/30·L3 45/13) — granularity 4건 재해석: jake=wash_out, rubber duck·sink=all_good, **tesla 만 진짜 계층 매장** → parent-union 처방의 케이스 증거.
+- 부수: phantom 의 47% (wash_out+all_good) 는 *어느 레벨엔가* within-level rank≤3 멤버 존재 — 최종 실패는 cross-level pool 경쟁 손실 → sake cup 류 "oracle-rank 진단 보수성" (3.4) 의 계층 버전.
+
+### P1 종합 — 표 A (2층) 갱신
+
+- **A1층 (경쟁 처방)**: robust 통계 (median/ROFA) = 회복 무력 (1~5/37) 이고 unweighted 는 유해 (−12/−9); view 선택 (bag) = 제로섬 유지, 순수형 (k=1) 은 양쪽 다 악화. → 어떤 family 도 phantom-easy 동시 보존 불가 (R11-d mask 로 확정 예정).
+- **A2층 (공유 구조 결함)**: score 함수 — 항상-반환 + 부재 쿼리의 30~42% 유령 top-1 + margin 포화 (0.52~0.62) BUT top1-conf 0.84 미사용 신호 존재. 계층 — phantom 을 못 고침 (전파+매장 54%), 증폭 17%. 방향성 — systematic bias 없음 (negative, modality-gap 지배).
 
 ## 7. 업데이트 로그
 
 | 날짜 | 변경 | 한 줄 |
 |---|---|---|
 | 2026-06-12 | 초기 작성 | P1 을 A–E 로 확장 (사용자 확정: P1 = 문제점 구체화 및 확정, P2 = method 제작). R13 사전등록, E1/E2 설계 고정, P1-E (VALA·StS 코드 직접 실험) future 등록 |
+| 2026-06-12 | **P1-B/C/D 실행 완료 (§6)** | **R13 a/b/c 전부 빗나감 — c-분기 발동** (top1-conf AUROC 0.836/0.848 ≥0.8 → P2 가드 채택); 신규: 부재 쿼리의 **유령 top-1 41.7%/29.2%**, margin 무력 (0.52~0.62) = canon 포화 3번째 증상. **E1 negative finding** (0 significant; modality-gap 지배 기계 원인). **E2: 전파≥세척 적중 (37%≥32%), 증폭 17%<20% 미달** — tesla 만 양 method 계층 매장 (parent-union 케이스 증거) |

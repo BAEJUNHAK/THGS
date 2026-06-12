@@ -52,6 +52,11 @@
 | 5 | **G2 제로섬** | [stage5_g2_fullpool.py](../../../scripts/stage5_g2_fullpool.py) | ReLaGS 전 pool query-top5 재채점 | **✅ 재현**: phantom **+8** / easy **−12** / other +3 (THGS +6/−10/+5) |
 | 5 | **G3 승자 시그니처** | [stage5_g3_winners.py](../../../scripts/stage5_g3_winners.py) | 회복불능/역행 승자의 nv·coherence·GT-IoU·친족 | **✅**: phantom 승자 GT-무관 82% (coh 0.89, few-view 33%); 역행 승자 GT-무관 90% |
 | 5 | **G4 ROFA 실측** | [stage5_g4_rofa.py](../../../scripts/stage5_g4_rofa.py) | 같은 dump 에서 ROFA on/off 재구성 rank 비교 | **phantom median 효과 0, 구출 1/20** — 2B 시뮬 ("outlier_handled 0%") 실제 확정 |
+| **6=P1-A** | **경쟁 부검 rank** | [p1a_competitor_autopsy.py](../../../scripts/p1a_competitor_autopsy.py) | CA-1 geometric median 3변형 (Weiszfeld 20it) + CA-2 qmax1/top5, 양 method, gate 포함 | **gate 0 mismatch ×2**. median rec 1~5/37 (unweighted 는 easy −12/−9 유해), qmax1 rec 3/4 < top5 6/8 (reg 10/14) — **R11-a 부분 적중·b/c "예측보다 나쁨" 방향 빗나감** |
+| 6=P1-A | **경쟁 부검 mask** | [p1a_mask_eval.py](../../../scripts/p1a_mask_eval.py) | 5 변형 × 208쌍 (per-prompt 67 평균), baseline 재현 gate | baseline **차이 0.0** 재현. **R11-d 적중: 전 변형 R9 bar FAIL** — gm_g full +0.3 (easy +1.2/ph −1.8) vs top5 full −0.1 (ph +19.9/easy −9.8) **거울상** |
+| **6=P1-B** | **부재 쿼리** | [p1b_absence_query.py](../../../scripts/p1b_absence_query.py) (+[montage](../../../scripts/p1b_absence_montage.py)) | LVIS 부재 어휘 120 × 4 rule × 2 method — confident-hit + AUROC + 유령 top-1 | **R13 a/b/c 빗나감, c-분기 발동**: top1-conf AUROC **0.836/0.848** (P2 가드 채택), margin 0.62/0.53 (포화 3번째 증상), **유령 top-1 41.7%/29.2%** |
+| **6=P1-C** | **E1 방향성** | [p1c_e1_direction.py](../../../scripts/p1c_e1_direction.py) | direction (c/a/b) × LVIS 1203 top-5 + P1/P2/P4 perm null + P3 spatial | **0 significant → negative finding** (P3 방향 일치 p=0.17~0.22 ns; P2/P4 insufficient_n). 기계 원인: **modality-gap 지배** (top-5 카테고리 전 phantom 공유) |
+| **6=P1-D** | **E2 계층 전파** | [p1d_e2_hierarchy.py](../../../scripts/p1d_e2_hierarchy.py) | phantom 41+easy 84 의 NAG 사슬 within-level best rank → 4분류 | **전파 37% ≥ 세척 32% ✅** / 증폭 17% (<20% 미달). granularity4: tesla 만 양 method amplification (L2 1 → L3 45/13), jake=wash_out, duck·sink=all_good |
 
 ---
 
@@ -757,6 +762,13 @@ oracle_rank    = rank of oracle SP under adjusted_score
 | 5 | stage5_g2_fullpool.csv | 67 | base vs top5 rank (제로섬 근거) |
 | 5 | stage5_g3_winners.csv | 120 | 승자 시그니처 |
 | 5 | stage5_g4_rofa.csv | 67 | ROFA on/off rank (실측 net 효과) |
+| 6 | ca1_gm_ranks_{thgs,relags}.csv | 67×2 | CA-1 median 3변형 rank (R11-a/b) |
+| 6 | ca2_qmax_ranks_{thgs,relags}.csv | 67×2 | CA-2 qmax1+top5 rank (R11-c) |
+| 6 | p1a_mask_iou.csv | 208 | 부검 5변형 mask IoU (R11-d) |
+| 6 | p1a_selections_{thgs,relags}.pkl | — | rule 별 top-3 (mask eval 입력) |
+| 6 | p1b_absence_vocab.csv / p1b_absence_scores.csv | 120 / 748 | 부재 어휘 (provenance) / query 별 4 rule 점수·신호 (R13) |
+| 6 | p1c_e1_directions.csv / p1c_e1_patterns.csv | 41 / 28 | E1 방향 top-5 + pattern 검정 |
+| 6 | p1d_e2_hierarchy.csv | 125 | E2 사슬 rank + 4분류 |
 
 ### Plot ([output/diagnostics/plots/](../../../output/diagnostics/plots/)) — 23 PNG
 
@@ -785,6 +797,7 @@ oracle_rank    = rank of oracle SP under adjusted_score
 | 2026-06-11 | **Stage 3.4 section 추가 (잔여 전수 분해)** | 36 케이스 taxonomy 완성: R6 PASS (unknown 2) / R7 발동 (multi-instance 7 prompt) / R8 전원 재분류 (encoder 잔여 3건으로 축소 — Stage 1 의 D2.real 프레임 수정). 신규 원인 few-view opportunist + 가드 신호 g1/g2. Stage 4 method 요구사항 명세 산출. |
 | 2026-06-12 | **Stage 4 section 추가 (method LOSO 검증)** | 정합성 gate 0/67×2 → v1 PARTIAL (+0.76) → ablation 으로 g1 결함 적발 → 재탐색 1회 (v2: g1 제거+g2 추가) → **held-out +3.74pt, phantom +17.5pt — 단 easy −4.08pt 로 R9 PARTIAL 최종**. g2 margin 분리자 포화 부검 포함. Stage 5 = 가드 분리자 재설계. |
 | 2026-06-12 | **Stage 5 section 추가 (ReLaGS 메커니즘 재현)** | ROFA-포함 gate 97.8~100% (유령 21 독립 재확인) → **G1·G2·G3 전부 재현** (95%·23/51%·+8/−12) + **G4: ROFA 실측 효과 phantom median 0 (구출 1/20)** → "소수파 매장 = paradigm-level, ROFA 도 못 막음" 확정. ReLaGS dump 확보로 R10 즉시 가능. |
+| 2026-06-12 | **Stage 6 (=P1) 4종 추가 (문제점 구체화)** | P1-A 부검 (gate 0×2, mask 재현 0.0): **R11-d 적중 — 경쟁 전 변형 R9 bar FAIL, 거울상 구도** (robust=easy만/selection=phantom만); P1-B 부재쿼리: **R13 c-분기** (top1-conf 0.84 채택), 유령 top-1 42%/29%; P1-C **E1 negative** (modality-gap); P1-D E2 전파≥세척 적중 (증폭 17%). 표 A 2층 완성. |
 
 ---
 

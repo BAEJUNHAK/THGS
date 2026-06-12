@@ -10,7 +10,7 @@
 
 ## 🎯 한 문장 결론 (현재까지)
 
-> **"Stage 5 로 진단이 완전체가 됐다: 소수파 매장과 제로섬이 ReLaGS 에서 거의 같은 숫자로 재현 (95%, 23/51%, +8/−12) — 그리고 ROFA 의 실측 효과는 phantom 에 median 0 (구출 1/20). '다수결의 비극' 은 paradigm-level 이며, robust averaging 조차 못 막는다. method 는 +3.74pt (R9 PARTIAL) — 남은 공학 question 은 easy 를 알아보는 눈."**
+> **"P1 (문제점 구체화) 까지 완료: 경쟁 처방을 같은 하네스에서 실측하니 robust 통계는 easy 만 (gm_g +1.2/phantom −1.8), view 선택은 phantom 만 (top5 +19.9/easy −9.8) 지키는 거울상의 절반 처방 — R9 bar 통과는 우리 hybrid 뿐 (R11-d). 더해서 score 함수는 부재 쿼리의 42%/29% 에 유령을 내놓고 margin 은 포화인데, 안 쓰이던 top1-conf (AUROC 0.84) 가 P2 가드의 입력으로 확보됐다. E1 은 negative (정직 기록), E2 는 '계층은 phantom 못 고침 (37%≥32%)'. 다음 = 사람 리뷰 → P2 (method)."**
 >
 > (2B "within-view 범인" → 3.1 기각 → 3.2 소수파 매장 → 3.3 제로섬 → 3.4 전수 이름표 → 4 method 본체 합격 → **5 method-agnostic 확정**)
 
@@ -346,6 +346,7 @@ sp_feat = sp_mask_mat @ view_level_feature   # ratio-weighted sum ← 여기서 
 | 2026-06-11 | **Stage 3.4 완료 (잔여 전수 분해)** | 36 케이스 이름표 완성 (R6 PASS, unknown 2). 신규 원인: **few-view opportunist** (mean 은 저관찰 SP 에 유리) + **multi-instance 미표기 의심 7 prompt (R7 발동)**. 가짜 역행 3건 (rank 착시). **R8: encoder 한계 프레임 해체** — D2.real 4/5 + 2B encoder-측 4/4 가 전부 dilution, 최종 잔여 3건. Stage 4 부품 목록 확정. |
 | 2026-06-12 | **Stage 4 완료 (method LOSO 검증)** | **R9 PARTIAL 최종**: held-out +3.74pt (phantom +17.5, other +13.3, multi-inst 제외 +4.53) — headline 합격, easy −4.08 로 보호 기준 미달. g1 결함 적발 (ablation) + g2 margin 포화 부검. 한 문장 결론 갱신: "심장은 뛴다, 남은 건 easy 를 알아보는 눈". |
 | 2026-06-12 | **Stage 5 완료 (ReLaGS 재현)** | **G5: 전부 재현** — 두 법정 같은 판결 (95%·23/51%·+8/−12), ROFA 실측 = 유령 청소부일 뿐 (phantom median 0, 구출 1/20). "다수결의 비극 = paradigm-level" 확정, Section 2 완결. ReLaGS dump 1.2GB 확보 → R10 즉시 가능. |
+| 2026-06-12 | **P1 (Stage 6) 완료 (문제점 구체화 4종)** | **R11-d 적중** (경쟁 전 변형 R9 bar FAIL — 거울상 절반 처방 확정), R11-b/c 빗나감은 "예측보다 나쁨" 방향. **R13 c-분기**: top1-conf AUROC 0.84 채택 + 부재 유령 top-1 42%/29% + margin 포화 3번째 증상. **E1 negative** (modality-gap), **E2 전파≥세척 적중** (증폭 17%<20%, tesla 매장). 표 A 2층 완성 → P2 사양서 확보. |
 
 <!-- 새 stage 추가 시 위 표에 한 줄 추가하고, 본문에는 새 section 을 "Stage 2A 가 결정한 것" 과 "Stage 2B" 사이에 넣을 것 -->
 
@@ -516,6 +517,35 @@ ROFA 가 실제로 하는 일을 켜고-끄고 비교해 보니: **유령 (featu
 ### 🎯 Stage 5 완료 시점 — 한 문장 결론
 
 > **"이제 말할 수 있다: 실패의 원인은 특정 모델의 버그가 아니라 'CLIP 화살표를 평균내어 물체당 1개로 만든다' 는 paradigm 그 자체다. 두 법정, 같은 판결, 경호원도 무력 — 페이퍼 Section 2 완결."**
+
+---
+
+## ⚔️ P1 (Stage 6) — "경쟁자들의 약도 먹여봤다: 전부 절반짜리 처방"
+
+상세: [../strategy/competitor_autopsy.md](../strategy/competitor_autopsy.md) §4-5 + [../strategy/p1_problem_experiments.md](../strategy/p1_problem_experiments.md) §6
+
+### 비유: 같은 환자에게 경쟁 병원의 처방전을 먹여본 임상시험
+
+"평균이 문제다" 라고 말한 경쟁 논문들의 처방을 **우리 환자 (같은 dump, 같은 채점)** 에게 투여했다 (사전등록 R11 — 결과 보기 전에 예측을 적어둠):
+
+| 처방 | phantom (회복력) | easy (안전성) | 한 줄 |
+|---|---|---|---|
+| 🛡️ robust 통계 최선 (median+gating) | **−1.8pt (무익)** | +1.2pt | "안전하지만 병을 못 고침" |
+| 🎯 view 선택 최선 (bag top-5) | **+19.9pt** | **−9.8pt** | "병은 고치는데 멀쩡한 곳을 망가뜨림" |
+| 🧪 bag 순수형 (k=1) | +1.8pt | −17.3pt | "양쪽 다 악화 — 노이즈" |
+| 💊 ours (가드 hybrid, Stage 4) | +17.5pt | −4.1pt | "유일하게 headline 통과, 가드는 미완" |
+
+→ **거울상 구도 확정**: 두 family 는 각각 절반만 고치는 처방. 빗나간 예측 (R11-b/c) 조차 전부 "경쟁 처방이 예측보다 *더* 나쁨" 방향 (unweighted median 은 easy −12 유해, k=1 은 회복마저 반감).
+
+### 보너스 3종 (A2층 — 모두가 공유하는 결함)
+
+1. **부재 쿼리 (P1-B)**: 없는 물체를 물어도 시스템은 *항상* mask 를 내놓는데, 그 top-1 의 **42% (THGS) / 29% (ReLaGS) 가 zero-norm 유령** (canon(0)=0.5 가 진짜 SP 들을 이김). margin 은 있/없 분리에도 무력 (AUROC 0.52~0.62 — Stage 4 g2 포화와 같은 뿌리, 세 번째 증상). 반전: **mean top-1 절대 confidence 는 AUROC 0.84** — 아무 paper 도 안 쓰는 공짜 분리 신호 → P2 가드의 입력으로 채택 (R13 c-분기).
+2. **E1 방향성 (P1-C)**: phantom 의 틀어진 방향은 systematic 하지 않음 — **negative finding** (0/4 pattern, 사전등록 rule 그대로 appendix 행). 원인: direction vector 가 CLIP modality gap 에 지배됨.
+3. **E2 계층 (P1-D)**: 계층은 phantom 을 못 고친다 (전파 37% ≥ 세척 32% ✅ 적중); 증폭은 17% 로 기준 미달 — 단 **tesla 는 양 method 에서 계층이 정답을 매장** (L2 rank 1 → L3 45/13).
+
+### 🎯 P1 완료 시점 — 한 문장 결론
+
+> **"문제점 구체화 완료: 경쟁 처방은 거울상의 절반짜리 (robust=easy만, selection=phantom만) 임을 같은 하네스에서 실측했고, 모두가 공유하는 score 함수는 부재 쿼리에 유령을 내놓으면서도 정작 가진 분리 신호 (top1-conf 0.84) 를 안 쓴다. 표 A 의 2층이 모두 숫자로 찼다 — P2 (method) 는 이 사양서 위에서 시작한다."**
 
 ---
 
