@@ -128,6 +128,8 @@ def create(image_list, data_list, save_folder):
         try:
             img_embed, seg_map = _embed_clip_sam_tiles(img.unsqueeze(0), sam_encoder)
         except:
+            import traceback
+            traceback.print_exc()  # surface the real error (was silently swallowed)
             raise ValueError(timer)
 
         lengths = [len(v) for k, v in img_embed.items()]
@@ -236,21 +238,24 @@ def mask_nms(masks, scores, iou_thr=0.7, score_thr=0.1, inner_thr=0.2, **kwargs)
     masks_ord = masks[idx.view(-1), :]
     masks_area = torch.sum(masks_ord, dim=(1, 2), dtype=torch.float)
 
-    iou_matrix = torch.zeros((num_masks,) * 2, dtype=torch.float, device=masks.device)
-    inner_iou_matrix = torch.zeros((num_masks,) * 2, dtype=torch.float, device=masks.device)
-    for i in range(num_masks):
-        for j in range(i, num_masks):
-            intersection = torch.sum(torch.logical_and(masks_ord[i], masks_ord[j]), dtype=torch.float)
-            union = torch.sum(torch.logical_or(masks_ord[i], masks_ord[j]), dtype=torch.float)
-            iou = intersection / union
-            iou_matrix[i, j] = iou
-            # select mask pairs that may have a severe internal relationship
-            if intersection / masks_area[i] < 0.5 and intersection / masks_area[j] >= 0.85:
-                inner_iou = 1 - (intersection / masks_area[j]) * (intersection / masks_area[i])
-                inner_iou_matrix[i, j] = inner_iou
-            if intersection / masks_area[i] >= 0.85 and intersection / masks_area[j] < 0.5:
-                inner_iou = 1 - (intersection / masks_area[j]) * (intersection / masks_area[i])
-                inner_iou_matrix[j, i] = inner_iou
+    # Vectorized pairwise IoU (exact replacement of the original O(n^2) Python
+    # loop — verified bit-identical selection on randomized containment cases).
+    # intersection counts fit exactly in float32 (HW < 2^24).
+    flat = masks_ord.reshape(num_masks, -1).float()
+    inter = flat @ flat.T                                   # (N, N) intersections
+    union_mat = masks_area[:, None] + masks_area[None, :] - inter
+    iou_matrix = inter / union_mat
+    ratio_i = inter / masks_area[:, None]                   # inter / area_i at (i, j)
+    ratio_j = inter / masks_area[None, :]                   # inter / area_j at (i, j)
+    # original loop wrote [i, j] when (ri<0.5, rj>=0.85) for j>=i, and [j, i]
+    # when (ri>=0.85, rj<0.5); evaluating the first condition over the FULL
+    # matrix reproduces both writes (the lower-triangle entries are exactly the
+    # transposed second-condition writes).
+    inner_iou_matrix = torch.where(
+        (ratio_i < 0.5) & (ratio_j >= 0.85),
+        1 - ratio_i * ratio_j,
+        torch.zeros_like(inter))
+    del flat, inter, union_mat, ratio_i, ratio_j
 
     iou_matrix.triu_(diagonal=1)
     iou_max, _ = iou_matrix.max(dim=0)
@@ -420,4 +425,8 @@ if __name__ == '__main__':
         except ValueError as e:
             print(f"Error in image {e}")
             img_list = []
+            _retry = globals().get('_retry', 0) + 1
+            globals()['_retry'] = _retry
+            if _retry >= 3:
+                raise RuntimeError("Aborting after 3 consecutive encode failures (see traceback above)")
             continue

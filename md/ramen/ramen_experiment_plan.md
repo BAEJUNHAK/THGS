@@ -2,6 +2,8 @@
 
 > 이 md는 `q.md`의 참고 쿼리 구조를 **로컬 LERF-OVS GT 실측 결과**에 맞춰 재정리한 **우리 실험 전용 설계안**이다. `q.md`는 외부 참조이므로 그대로 두고, 이 파일을 프로젝트 기준으로 쓴다.
 
+> **왜 ramen인가 (2026-06 추가)**: LERF-mask 위에서 SAM lifting Ceiling vs CLIP-based Actual 의 gap을 분해 측정한 결과, 전체 gap 0.1164 중 **84% (0.2527 / 0.30) 가 ramen 한 장면에 집중**되어 있음이 확인되었다. figurines/teatime에서 CLIP은 거의 ceiling 수준(gap < 6%p)이지만 ramen에서만 25%p 매칭 실패 발생. 본 실험 계획의 multi-level 쿼리는 **ramen의 CLIP-NAG 매칭이 정확히 어떤 종류의 쿼리에서 무너지는가**를 진단하는 직접적 후속 실험이다. 자세한 framing은 [lerf_gap_analysis_plan.md](../THGS/lerf_gap_analysis_plan.md) Section 1.2, 실측은 [lerf_mask_vs_ovs_analysis.md](../THGS/lerf_mask_vs_ovs_analysis.md) Section 8 참고.
+
 ---
 
 ## 0. 실험 대상

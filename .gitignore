@@ -18,3 +18,7 @@ data/
 pretrained/
 ckpts/
 md/ramen_visualization/
+# separate repos / local installs (never commit)
+miniforge3/
+opensplat3d/
+ReLaGS/

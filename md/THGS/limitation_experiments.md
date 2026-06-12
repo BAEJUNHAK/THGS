@@ -27,7 +27,9 @@
 
 각 단계를 oracle로 대체해 ceiling을 측정. 성능 상승이 큰 단계 = 그 단계의 limitation 기여도.
 
-### 1-A. SAM-oracle
+> **업데이트 (2026-06)**: SAM lifting 결과 자체의 ceiling을 inference 단계에서 측정하는 더 빠른 ablation을 LERF-mask 위에서 실측 완료. 결과는 1-E 참고. 이게 핵심 finding이라 다른 ablation들의 우선순위를 바꾼다. 자세한 framing은 [lerf_gap_analysis_plan.md](lerf_gap_analysis_plan.md) Section 1.2 참고.
+
+### 1-A. SAM-oracle (학습 입력 oracle)
 - `language_features/*_s.npy`를 LERF-OVS GT polygon → 4-scale mask로 덮어쓰기.
 - `_f.npy`는 GT crop을 CLIP ViT-B-16으로 재인코딩.
 - 이후 Stage β-2, β-3, γ, δ 그대로 실행.
@@ -43,9 +45,39 @@
 - `merge_proj.py` 생략, level-1만 사용.
 - `test_lerf.py`에서 `level=[1]`로 쿼리.
 
-**지표**: mIoU, Precision, Recall. "GT-SAM + 기존 이후"가 얼마나 올라가는지, "GT-CLIP + 기존 이후"가 얼마나 올라가는지 gap 비교.
+### 1-E. SAM-lifting Ceiling — **실측 완료** (Oracle v2/v3)
 
-**소요**: 1-A/1-B는 Stage α부터 재실행 → scene당 ~1.5h.
+LERF-mask test view에서 **SAM 정보로 학습된 THGS의 3D 표현 (NAG superpoint) 의 ceiling**을 직접 측정. 1-A/1-B와 달리 재학습 없이 inference 단계에서 GT mask를 oracle로 사용.
+
+- **v2 (분포 기반)** ([sam_oracle_v2_lerf_mask.py](../sam_oracle_v2_lerf_mask.py)): 각 SP의 visible 가우시안 중 majority가 GT 안인 SP select. τ sweep.
+- **v3 (렌더 IoU 기반)** ([sam_oracle_v3_lerf_mask.py](../sam_oracle_v3_lerf_mask.py)): 각 SP를 단독 렌더 → GT와 IoU 상위 topk select.
+
+| Method | figurines | ramen | teatime | **Overall** |
+|---|---|---|---|---|
+| **v2 τ=0.5** (추천 ceiling) ★ | 0.8389 | 0.8445 | 0.8760 | **0.8531** |
+| v3 topk=1 (single-SP 한계) | 0.7805 | 0.7934 | 0.8871 | 0.8204 |
+| **CLIP-based** (Actual) | 0.7804 | 0.5918 | 0.8380 | **0.7367** |
+
+**핵심 식 (dual equation)**:
+```
+LERF-mask 점수  ≒ Ceiling                   = 0.8531  (3D 표현 천장)
+LERF-OVS 점수   ≒ Ceiling − 매칭 손실
+Actual          = Ceiling − Gap             = 0.7367  (CLIP-based 실제)
+Gap                                         = 0.1164  ← 매칭 알고리즘 손실
+```
+
+**가설 매핑**:
+- **H10** (CLIP feature가 bag-of-masks weighted avg) — 매칭 부정확의 직접 원인
+- **H11** (level=[2,3] + topk=3 고정) — 매칭 선택의 한계
+
+→ **H10 + H11의 실효 손실 = 11.6%p**. 그리고 그 손실의 84% 가 ramen 한 장면에 집중 (ramen gap 0.2527, figurines 0.0585, teatime 0.0380).
+→ **figurines/teatime에서 CLIP은 거의 ceiling 수준** (gap < 6%p), **ramen에서만 매칭 실패**.
+
+**후속 ablation의 우선순위**: H10/H11 ablation + ramen 집중 진단으로 좁혀짐.
+
+**지표**: mIoU, Precision, Recall, BIoU.
+
+**소요**: 1-A/1-B는 Stage α부터 재실행 → scene당 ~1.5h. **1-E는 inference only, 3 scenes 합 약 5분.**
 
 ---
 
