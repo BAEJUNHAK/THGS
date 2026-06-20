@@ -163,7 +163,7 @@
 
 | 항목 | 우리 vs Paper |
 |--|--|
-| 절대 mIoU | ±3-7점 차이 (sai_nag.pt 버전 추정) |
+| 절대 mIoU | ±3-13점 차이 — **§9 에서 공식 eval 로 체크포인트 차이 확정** (THGS teatime +13.5; 더 이상 "추정" 아님) |
 | Teatime 방향 | 반대 (특수 케이스) |
 
 ### 5.3 우리 framework 결론의 robustness
@@ -189,7 +189,7 @@
 4. **2/4 scene paper와 정확 일치** (ReLaGS Fig/Waldo 소수점 둘째 자리까지)
 
 ### 한계 ⚠️
-1. **모델 체크포인트 차이로 인한 절대 mIoU 차이** — Teatime에서 가장 두드러짐 (sai_nag.pt 버전 추정)
+1. **모델 체크포인트 차이로 인한 절대 mIoU 차이** — Teatime에서 가장 두드러짐. **§9 (2026-06-17) 에서 공식 eval_seg.py 로 확정**: THGS 체크포인트가 논문과 다름 (출처 불명 2025-07 빌드), ReLaGS 는 저자 HF 라 충실. → 절대 THGS mIoU 인용 금지
 2. **paper 의 정확한 aggregation 미명시** — 우리 LangSplat-style 은 표준이지만 paper의 정확한 방식은 알 수 없음
 
 ### Framework 가치 ✅
@@ -213,3 +213,63 @@
 > 우리 ReLaGS 실험은 **paper Algorithm 1과 알고리즘 수준에서 완벽 일치**, **2/4 scene 에서 paper 수치와 소수점 둘째 자리까지 일치**. 절대 mIoU 차이는 모델 체크포인트 버전 차이로 추정되며, 우리 framework의 정성적 결론은 모두 paper와 일치합니다.
 >
 > **Framework가 잘못된 게 아니라, paper-internal numbers 재현이 어려운 일반적인 ML reproducibility 문제**입니다. 우리의 distractor taxonomy + 정량 진단 framework는 inference protocol / aggregation / 모델 버전 변경에 robust 한 것을 확인했습니다.
+
+---
+
+## 9. 재현성 정밀 분석 (2026-06-17) — 공식 eval 확정 + 체크포인트 출처
+
+> §4·§6 의 "체크포인트 차이 *추정*" 을 **공식 eval 실행으로 확정**하고, THGS/ReLaGS 재현의 신뢰 등급을 분리한다. 짝꿍: **[reproduction_plan.md](reproduction_plan.md)** (제대로 된 재현 계획).
+
+### 9.1 논문 정본 수치 (2026-06-17 재확인 — 논문 직접 인용)
+
+| Scene | THGS 논문 (Table 1) | ReLaGS 논문 (Table 3) |
+|---|---|---|
+| figurines | 57.30 | 64.7 |
+| ramen | 43.46 | 51.2 |
+| teatime | 68.33 | 81.0 |
+| waldo | 50.65 | 60.6 |
+| **overall** | **54.94** | **64.4** |
+
+ReLaGS Table 3 의 전체 leaderboard (P2 표 B 용): LangSplatV2 59.9 / THGS 54.9 / Occam's 61.3 / VALA 61.7 / LAGA 64.0 / **ReLaGS 64.4**. THGS Table 4 mAcc overall 98.02.
+
+### 9.2 공식 eval_seg.py 실행 결과 (★ "추정" → "확정")
+
+기존 `output/render/lerf` 의 렌더 mask (test_lerf.py 산출, 2026-05-28) 에 **공식 [scripts/eval_seg.py](../../scripts/eval_seg.py)** 를 실행 (GPU-free):
+
+```
+figurines     mIoU 0.5493  mAcc 0.9928
+ramen         mIoU 0.4214  mAcc 0.9609
+teatime       mIoU 0.8187  mAcc 0.9888
+waldo_kitchen mIoU 0.5654  mAcc 0.9694
+Overall       mIoU 0.5887  mAcc 0.9780
+```
+
+- **teatime 0.8187 = 공식 eval 의 진짜 출력** (진단 스크립트 아티팩트 아님). mAcc 0.9780 은 paper 0.9802 와 ~0.2pt 일치.
+- 공식 eval_seg.py 집계 = **frame 내 prompt 평균 → frame 평균 → scene 평균** (각 frame 동일 가중; 우리 진단의 per-pair rowmean 과 미세하게 다르나 결론 동일).
+
+### 9.3 THGS vs ReLaGS 재현 신뢰 등급 — **다르다**
+
+| | THGS | ReLaGS |
+|---|---|---|
+| 체크포인트 출처 | **THGS 공식 Google Drive "ready-to-use scenes" 릴리즈 그 자체 — 4 scene 전부 md5 byte-identical 확정** (2025-07 다운로드분; cfg_args `/data/dsh/` = 저자 경로). 우리가 빌드한 게 아님 | **저자 HuggingFace 릴리즈 그대로** (`lerf_hf`, cfg_args `/home/xie/...`) |
+| fig/waldo 재현 | 54.93/56.54 vs paper 57.30/50.65 (−2.4/+5.9) | **64.67/60.62 vs 64.7/60.6 (−0.03/+0.02, 소수점 일치)** |
+| 편차 패턴 | **비균일** (fig −2.4, ramen −1.3, teatime **+13.5**, waldo +5.9) | ramen/teatime 만 낮음 (−3.8/−7.1), 나머지 정확 |
+| 갭의 정체 | **공식 릴리즈 체크포인트 ≠ 논문 Table 1 (저자 미공개 빌드)** — released 가 오히려 overall +3.9 높음. 우리 쪽 출처는 byte-clean | **phantom 실패** (oracle 높음, retrieval 실패 — 우리 thesis) |
+| 신뢰 등급 | ✅ **출처-확정 (공식 릴리즈 byte-identical)**. 단 released≠paper-table 이므로 절대값은 "released checkpoint, official eval = 58.87" 로 명시 | ✅ **충실 anchor** |
+
+**teatime 방향 역전의 단일 원인 확정**: 우리 THGS teatime(81.87)이 **논문 ReLaGS teatime(81.0)보다도 높음** — ReLaGS 가 낮아서가 아니라 **THGS 공식 릴리즈 체크포인트가 논문 Table 보다 teatime 에서 +13.5 높음**. §3.2 "anomaly 추측" 종결: **THGS 가 공개한 ready-to-use 체크포인트(우리가 쓴 것, md5 일치)가 THGS 자신의 paper Table 1 을 재현하지 못함** — 우리 측정/출처 문제가 아니라 THGS 의 released-vs-paper reproducibility gap.
+
+### 9.4 ReLaGS ramen/teatime 갭의 정체 (체크포인트 불량 아님)
+
+native diagnostic per-prompt 분석 ([lerf_ovs_relags_native_h.csv](../../output/diagnostics/lerf_ovs_relags_native_h.csv)):
+- 67 prompt 중 oracle<0.4 는 1개뿐 (porcelain hand) → **SP·기하 멀쩡** (체크포인트 품질 정상).
+- 갭은 **14개 prompt 에 집중** (oracle 0.54~0.98 인데 actual≈0 = retrieval 실패 = phantom). ramen: hand/onion/plate/corn/sake cup. teatime: hooves/coffee mug(nsel=0)/bear nose.
+- 파국 prompt 를 oracle 로 회복 시 ramen 65.4 / teatime 86.7 (**paper 초과**) → paper 도 이들을 다 못 살림. **= 우리 thesis (phantom) 의 직접 증거이지 재현 실패 아님.**
+
+### 9.5 결론 + 처방 (2026-06-17 — Drive 다운로드로 출처 확정 완료)
+
+1. **THGS 출처 확정 ✅**: 우리 `output/lerf/*` = THGS 공식 Drive 릴리즈 **byte-identical (4/4 scene md5 일치)**. md5: figurines `86f678e0…`, ramen `c87fd2c8…`, teatime `03db4c92…`, waldo `a039564…`. → 우리 THGS 수치는 **공식 공개 체크포인트의 공식 eval 값(58.87)** 으로 정직하게 인용 가능.
+2. **단 released ≠ paper-table**: 공식 릴리즈가 paper Table 1(54.94)을 재현 못 함 (released 58.87, teatime +13.5). 이건 **THGS 의 reproducibility gap** 이지 우리 문제 아님 — paper 에 "we evaluate the publicly released THGS checkpoint under the official protocol; it scores 58.87, differing from the paper's reported 54.94 (their unreleased build)" 로 명시.
+3. **ReLaGS = 신뢰 anchor** — fig/waldo 소수점 일치. paradigm 주장은 ReLaGS 만으로도 섬.
+4. **메커니즘 결론(P1 포함)은 전부 robust** — rank 기반, NAG 버전 무관.
+5. **표 B base 확정**: THGS 58.87 (공식 릴리즈, byte-verified) / ReLaGS 61.65 (공식 HF). 둘 다 출처-clean. drop-in 이득은 **"이 base 위 Δ"** 로. 외부 비교는 ReLaGS Table 3 published(VALA 61.7, ReLaGS 64.4)와 나란히.

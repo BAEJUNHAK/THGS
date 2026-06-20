@@ -24,7 +24,7 @@
 
 ### 한 문장 전략
 
-> **"'평균이 문제다' 는 이미 등장한 관찰이므로 양보한다 (VALA, Beyond Averages, ReLaGS-ROFA, Polysemy 등). 우리는 한 칸 위에서 싸운다: ① 왜 *어떤* averaging-family 수선도 실패할 수밖에 없는지의 법칙 (소수파 매장 + coherent-plausible 경쟁자 + 제로섬), ② 그 법칙이 경쟁 처방들의 실패를 *사전에 예측*하고 같은 인과 하네스에서 적중시키는 시연, ③ 법칙이 직접 설계한 method 의 성능 우위 입증."**
+> **"'평균이 문제다' 는 이미 등장한 관찰이므로 양보한다 (VALA, Beyond Averages, ReLaGS-ROFA, Segment then Splat 등). 우리는 문제정의를 한 칸 고도화한다: 실패의 핵심은 average 자체가 아니라, *easy query 에는 consensus preservation 이 필요하고 phantom query 에는 query-conditioned minority evidence recovery 가 필요한데 기존 method 들이 이 regime 을 구분하지 못하는 것*이다. P1 은 이 regime-confusion 을 기존 처방 위에서 측정하고, P2 는 그 구분기를 method 로 만든다."**
 
 ### Paper 의 승부처 = 두 개의 킬러 테이블
 
@@ -73,9 +73,9 @@
 | **P1-B** | **부재 쿼리 (absence query)** | 전 paper 공유 **score 함수 (canon-contrast) 가 '없음' 을 모름** + positives-only 벤치마크의 맹점 | R13 | 반나절 |
 | **P1-C** | **E1 phantom direction bias** | phantom 손상의 *방향성* — random 인가 systematic 인가 (main contribution 후보 / negative 면 appendix) | 카탈로그 §3 기등록 rule | 반나절 |
 | **P1-D** | **E2 계층 전파** | 두 paper 의 셀링포인트 **hierarchy** 가 phantom 을 전파/세척/증폭하는가 | 3분기 예측 (p1 문서) | 반나절 |
-| **P1-E** | VALA·Segment-then-Splat **공개 코드 직접 실험** — 전체 파이프라인 + 우리 진단 스택 적용 | family-근사 → **per-paper 실측** 격상 ("VALA 도 ~30% phantom?") | P1-A~D 리뷰 후 별도 등록 | **future** (GPU 일 단위) |
+| **P1-E** | VALA·Segment-then-Splat **공개 코드 직접 실험** — 전체 파이프라인 + method별 diagnostic adapter | family-근사 → **per-paper 실측** 격상. 단순히 "VALA 도 ~30% phantom?" 이 아니라 **기존 average-fix 가 어떤 regime 은 고치고 어떤 regime 은 놓치는지** 측정 | [p1e_external_code_study_plan.md](p1e_external_code_study_plan.md) 초안 | source audit 시작 |
 
-- 표 A 가 **2층**이 됨: **A1층** = 경쟁 처방의 실패 (P1-A, 추후 P1-E 로 실측 격상) / **A2층** = 모두가 공유하는 구조적 결함 (score 함수 P1-B · 방향성 P1-C · 계층 P1-D).
+- 표 A 가 **3층**이 됨: **A1층** = 경쟁 처방의 실패 (P1-A, 추후 P1-E 로 실측 격상) / **A2층** = 모두가 공유하는 구조적 결함 (score 함수 P1-B · 방향성 P1-C · 계층 P1-D) / **A3층** = 문제정의 고도화 (**average problem → regime confusion: consensus 가 필요한 query 와 minority evidence 가 필요한 query 를 구분하지 못함**).
 - P1-B 는 P2 가드 설계의 *입력*이기도 함 (R13-c: 기존 confidence 신호의 present/absent AUROC < 0.8 이면 가드가 풀어야 할 문제의 정량 정의).
 - 정직성 명시: P1-A 는 per-paper 재현이 아니라 mechanism family 수준 faithful rule (C4/C5 는 포지셔닝 처리) — P1-E 가 이 한계를 解消.
 
@@ -148,3 +148,4 @@ P1 문제 구체화 (A 부검 R11 + B 부재쿼리 R13 + C E1 + D E2, ~2일)
 | 2026-06-12 | **v1.2** | **P2 를 차별화 실험 라인업으로 재정의** — P2-a 가드 (제로섬을 깨는 것), P2-b R10 (drop-in), **P2-c 가드 이식 신설** (기여 본체 = transferable 가드의 분리 입증, 거의 무료). 실험 외 차별점 ④⑤ 병기 |
 | 2026-06-12 | **v1.3** | **P1 을 "문제점 구체화 및 확정" phase 로 확장 (사용자 확정)** — P1-A 부검 + **P1-B 부재 쿼리 (R13 신설)** + **P1-C E1** + **P1-D E2** + **P1-E VALA·StS 공개 코드 직접 실험 (future)**. 표 A 2층 구조 (A1 경쟁 처방 실패 / A2 공유 구조 결함). P2 = method 제작, P1 리뷰 후 시작으로 명시. 상세: [p1_problem_experiments.md](p1_problem_experiments.md) |
 | 2026-06-12 | **P1-A~D 실행 완료** | 표 A 2층 수치 확보. **A1층**: R11-d 적중 (전 변형 R9 bar FAIL) — robust family 는 easy 만 (gm_g +1.2/phantom −1.8), selection family 는 phantom 만 (top5 +19.9/easy −9.8), **거울상의 절반 처방** 확정; 빗나간 예측 (R11-b/c) 은 전부 "예측보다 더 나쁨" 방향. **A2층**: 부재 쿼리 유령 top-1 42%/29% + margin 포화 (0.52) + **미사용 분리 신호 top1-conf AUROC 0.84 (P2 가드 입력)**; E1 = negative (modality-gap); E2 = 계층은 phantom 못 고침 (전파 37%≥세척 32%), 증폭 17% (<20% 미달, tesla 양 method 매장). 사람 결정 대기: P1-E go/no-go, P2 진입 |
+| 2026-06-15 | **v1.4 문제정의 고도화** | 한 문장 전략을 **average problem → regime confusion** 으로 업데이트. 표 A 를 3층 구조로 확장: A1 경쟁 처방 실패, A2 공유 구조 결함, A3 consensus regime 과 minority-evidence regime 을 구분하지 못하는 문제정의 고도화. P1-E 를 VALA/StS 의 "고친 regime / 놓친 regime" 실측으로 재정의 |

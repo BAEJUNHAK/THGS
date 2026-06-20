@@ -2,7 +2,7 @@
 
 > 생성 2026-06-12. 상위 문서: **[roadmap.md](roadmap.md)** (P1 정의). 짝꿍: **[competitor_autopsy.md](competitor_autopsy.md)** (= P1-A 의 상세).
 >
-> **P1 의 정체성 (사용자 확정)**: P1 = **기존 paper 들의 문제점 구체화 및 확정**. P2 (method 제작) 는 P1 결과 리뷰 후에만 시작. 이 문서는 P1-B/C/D 의 설계와 사전등록, P1-E (외부 코드 직접 실험) 의 계획을 담는다. 결과는 실험 후 이 문서 + experiments/README stage 표에 기록.
+> **P1 의 정체성 (사용자 확정)**: P1 = **기존 paper 들의 문제점 구체화 및 확정**. 특히 "average 가 문제다" 라는 기존 관찰을 반복하지 않고, **average 가 언제 맞고 언제 틀리는지(regime confusion)** 를 정량화한다. P2 (method 제작) 는 P1 결과 리뷰 후에만 시작. 이 문서는 P1-B/C/D 의 설계와 사전등록, P1-E (외부 코드 직접 실험) 의 계획을 담는다. 결과는 실험 후 이 문서 + experiments/README stage 표에 기록.
 
 ---
 
@@ -14,7 +14,7 @@
 | **P1-B** | 부재 쿼리 (absence query) | 모두가 상속한 **score 함수 (canon-contrast) 가 '없음' 을 모름** | LERF→전 paper 공통 + 벤치마크 (positives-only) | **R13 (본 문서)** | 설계 완료 |
 | **P1-C** | E1 phantom direction bias | phantom 이 random 인가 systematic 인가 — aggregation 손상의 *방향성* | paradigm 공통 | 카탈로그 §3 decision rule (기등록) + 검정력 보강 | 설계 완료 |
 | **P1-D** | E2 계층 전파 | THGS/ReLaGS 의 셀링포인트인 **hierarchy 가 phantom 을 전파/증폭하는가** | THGS·ReLaGS | 본 문서 (예측 3분기) | 설계 완료 |
-| **P1-E** | 외부 코드 전체 파이프라인 실험 | family-근사가 아닌 **per-paper 실측** — VALA·Segment-then-Splat 실제 코드를 우리 프로토콜로 | VALA, StS (공개 코드) | P1-A~D 리뷰 후 별도 등록 | **future** (아래 §5) |
+| **P1-E** | 외부 코드 전체 파이프라인 실험 | family-근사가 아닌 **per-paper 실측** — 기존 average-fix 가 무엇을 고쳤고 무엇을 놓쳤는지 | VALA, StS (공개 코드) | [p1e_external_code_study_plan.md](p1e_external_code_study_plan.md) 초안 | **source audit 시작** |
 
 ---
 
@@ -91,17 +91,21 @@ P1-A (CA-2 k=1 ~2h → CA-1 median 반나절 → mask eval 30m → R11 판정)
 P1-B (부재 어휘 구축 → 4 rule × 2 method 채점 → R13 판정)      ← A 와 병렬 가능
 P1-C (E1: direction + LVIS + permutation → 카탈로그 rule 판정)
 P1-D (E2: NAG 사슬 rank → 3분기 판정)
-→ 종합: 표 A 를 2층으로 (A1층 = 경쟁 처방 실패 / A2층 = 공유 score 함수·계층·방향성 결함)
+→ 종합: 표 A 를 3층으로 (A1층 = 경쟁 처방 실패 / A2층 = 공유 score 함수·계층·방향성 결함 / A3층 = average problem 의 regime-confusion 재정의)
 → 사람 리뷰 → P1-E go/no-go + P2 (method) 진입
 ```
 
 산출물 명명: `output/diagnostics/ca1_*.csv`, `ca2_*.csv`, `p1b_absence_*.csv`, `p1c_e1_*.csv`, `p1d_e2_*.csv` + plots. 문서 기록: 본 문서 §6 결과 + [../experiments/README.md](../experiments/README.md) stage 표.
 
-## 5. P1-E — 외부 코드 전체 파이프라인 실험 (future, P1-A~D 리뷰 후)
+## 5. P1-E — 외부 코드 전체 파이프라인 실험 ([source audit 초안](p1e_external_code_study_plan.md))
 
-- **무엇**: VALA 와 Segment-then-Splat 의 **공개 코드를 직접 받아** LERF-OVS 4 scene 에서 전체 파이프라인 실행 → ① 원저자 프로토콜 숫자 재현 ② 그들의 출력 위에 **우리 진단 스택 (B7/A4/joint 2×2)** 적용 → per-paper phantom 비율 실측.
-- **왜**: P1-A 는 family-수준 faithful rule 부검 — P1-E 는 이를 **per-paper 전체 파이프라인 실측**으로 격상. "VALA 도 ~30% phantom" 이 실측되면 paradigm 주장이 3-4 method 로 확장.
-- **비용/리스크**: env 구축 + 학습/최적화 (VALA 는 feature field 최적화, StS 는 per-object 최적화 — GPU 일 단위), sm_120 호환성 리스크 (opensplat3d 셋업 경험 재사용). **P1-A~D 결과 리뷰 후 별도 사전등록으로 진행.**
+- **무엇**: VALA 와 Segment-then-Splat 의 **공개 코드를 직접 받아** LERF-OVS 4 scene 에서 전체 파이프라인 실행 → ① 원저자 프로토콜 숫자 재현 ② 그들의 출력 위에 **우리 진단 스택의 method별 adapter** 적용 → per-paper phantom 비율 실측.
+- **왜**: P1-A 는 family-수준 faithful rule 부검 — P1-E 는 이를 **per-paper 전체 파이프라인 실측**으로 격상. 단 목표는 "VALA 도 ~30% phantom" 같은 숫자 하나가 아니라, **VALA/StS 가 고친 regime 과 놓친 regime 을 분리**하는 것이다.
+- **핵심 질문**:
+  1. VALA 의 robust/gating representative feature 는 noisy/occluded view 를 줄이는가? 그렇다면 그 개선이 phantom 회복인지 easy consensus 안정화인지 분리한다.
+  2. StS 의 object-first 구조는 aggregation phantom 을 없애는가? 아니면 실패를 object missing, merge/split, CLIP association 으로 이동시키는가?
+  3. 두 방법 모두 query-time selection/abstention/guard 를 갖고 있는가? 없다면 "average problem" 뒤의 더 깊은 문제는 **regime 판단 부재**로 확정된다.
+- **비용/리스크**: env 구축 + 학습/최적화 (VALA 는 feature field 최적화, StS 는 per-object 최적화 — GPU 일 단위), sm_120 호환성 리스크 (opensplat3d 셋업 경험 재사용). 현재 결론은 **VALA one-scene feasibility 먼저**, StS 는 preprocessed LERF-OVS 확보 + object-group diagnostic adapter 설계 후 진입.
 
 ## 6. 결과 (2026-06-12 실행 완료 — P1-B/C/D)
 
@@ -149,10 +153,11 @@ P1-D (E2: NAG 사슬 rank → 3분기 판정)
 - **② amplification 17% < 20% → no promotion** (경계 3%p 미달, 정직 보고). 단 **tesla door handle 은 양 method 에서 amplification** (L2 rank 1 인데 L1 100/30·L3 45/13) — granularity 4건 재해석: jake=wash_out, rubber duck·sink=all_good, **tesla 만 진짜 계층 매장** → parent-union 처방의 케이스 증거.
 - 부수: phantom 의 47% (wash_out+all_good) 는 *어느 레벨엔가* within-level rank≤3 멤버 존재 — 최종 실패는 cross-level pool 경쟁 손실 → sake cup 류 "oracle-rank 진단 보수성" (3.4) 의 계층 버전.
 
-### P1 종합 — 표 A (2층) 갱신
+### P1 종합 — 표 A (3층) 갱신
 
 - **A1층 (경쟁 처방)**: robust 통계 (median/ROFA) = 회복 무력 (1~5/37) 이고 unweighted 는 유해 (−12/−9); view 선택 (bag) = 제로섬 유지, 순수형 (k=1) 은 양쪽 다 악화. → 어떤 family 도 phantom-easy 동시 보존 불가 (R11-d mask 로 확정 예정).
 - **A2층 (공유 구조 결함)**: score 함수 — 항상-반환 + 부재 쿼리의 30~42% 유령 top-1 + margin 포화 (0.52~0.62) BUT top1-conf 0.84 미사용 신호 존재. 계층 — phantom 을 못 고침 (전파+매장 54%), 증폭 17%. 방향성 — systematic bias 없음 (negative, modality-gap 지배).
+- **A3층 (문제정의 고도화)**: 기존 "average 가 문제" 관찰을 **regime confusion** 으로 재정의 — easy/consensus query 는 mean/robust representative 가 맞고, phantom/minority-evidence query 는 query-conditioned selection 이 필요하다. 기존 paper 들의 약점은 평균을 고쳤는지 여부가 아니라 **두 regime 을 구분하는 guard/abstention/selection criterion 이 없다는 것**.
 
 ## 7. 업데이트 로그
 
@@ -160,3 +165,4 @@ P1-D (E2: NAG 사슬 rank → 3분기 판정)
 |---|---|---|
 | 2026-06-12 | 초기 작성 | P1 을 A–E 로 확장 (사용자 확정: P1 = 문제점 구체화 및 확정, P2 = method 제작). R13 사전등록, E1/E2 설계 고정, P1-E (VALA·StS 코드 직접 실험) future 등록 |
 | 2026-06-12 | **P1-B/C/D 실행 완료 (§6)** | **R13 a/b/c 전부 빗나감 — c-분기 발동** (top1-conf AUROC 0.836/0.848 ≥0.8 → P2 가드 채택); 신규: 부재 쿼리의 **유령 top-1 41.7%/29.2%**, margin 무력 (0.52~0.62) = canon 포화 3번째 증상. **E1 negative finding** (0 significant; modality-gap 지배 기계 원인). **E2: 전파≥세척 적중 (37%≥32%), 증폭 17%<20% 미달** — tesla 만 양 method 계층 매장 (parent-union 케이스 증거) |
+| 2026-06-15 | **regime-confusion framing 반영** | P1 의 정체성을 "average 가 문제" 반복이 아니라 **average 가 언제 맞고 언제 틀리는지**를 정량화하는 phase 로 격상. P1-E 의 질문을 VALA/StS 전체 mIoU 재현에서 **고친 regime / 놓친 regime 분리**로 재정의 |

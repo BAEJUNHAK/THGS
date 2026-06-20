@@ -18,6 +18,10 @@ import matplotlib.pyplot as plt
 import time
 import cv2
 
+# --- reproducibility: seed RNG from env (graph_weight uses torch.normal for SAM enc) ---
+if os.environ.get("PIPELINE_SEED"):
+    _s = int(os.environ["PIPELINE_SEED"]); torch.manual_seed(_s); torch.cuda.manual_seed_all(_s); np.random.seed(_s)
+
 
 
 def f(x):

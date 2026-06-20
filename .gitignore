@@ -22,3 +22,11 @@ md/ramen_visualization/
 miniforge3/
 opensplat3d/
 ReLaGS/
+# large local-only dirs (envs, caches, external method repos, staging data) — NEVER commit
+envs/
+external_methods/
+_langsplat_dl/
+repro_staging/
+.cache/
+.cache_home/
+.valahome/

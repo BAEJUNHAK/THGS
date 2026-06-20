@@ -16,6 +16,21 @@
 - **법칙 ③ (제로섬)** → 순수 view-선택 family (bag-of-embeddings, query-top-k) 는 phantom 을 살리는 만큼 easy 를 죽임 (lucky-view jump 무방비).
 - **따름정리 (few-view opportunist)** → visibility/weight 기반 gating family 는 저관찰-SP 비대칭을 건드리지 못함.
 
+### 0.1 문제정의 고도화 — average problem 에서 regime confusion 으로
+
+기존 paper 들의 관찰은 맞다: multi-view feature 를 하나로 평균내면 semantic signal 이 희석된다. 하지만 그 관찰만으로는 method 차별점이 약하다. 우리의 재정의는 더 좁고 더 강하다:
+
+> **문제는 average 자체가 아니라, query 별로 필요한 증거 체제가 다른데 모든 query 를 하나의 대표 feature 또는 하나의 retrieval rule 로 처리하는 것이다.**
+
+두 regime 이 공존한다:
+
+| Regime | 필요한 체제 | 왜 |
+|---|---|---|
+| **easy / consensus regime** | visibility-weighted mean 또는 robust consensus | 여러 view 가 같은 의미를 지지하므로 평균이 안정적이고, query-top-k 는 lucky wrong view 를 주워 easy 를 망칠 수 있음 |
+| **phantom / minority-evidence regime** | query-conditioned minority evidence selection | 정답 신호는 소수 view 에만 강하고, wrong SP 는 다수 view 에서 coherent-plausible 하므로 평균/median 게임에서는 정답이 구조적으로 패배 |
+
+따라서 기존 average-fix 의 약점은 "평균을 덜 나쁘게 만들지 못했다"가 아니다. **어떤 query 에서 평균을 보존해야 하고 어떤 query 에서 평균을 버려야 하는지 결정하지 못한다**는 것이 핵심이다. 이 framing 이 P2 의 직접 요구사항이다: **query-conditioned guarded aggregation**.
+
 ## 1. 경쟁자 카탈로그 (지형도)
 
 | # | 논문 | 주장 (관찰) | 처방 | Family | Taxonomy 매핑 | 부검 상태 |
@@ -29,6 +44,46 @@
 | C7 | **OpenInsGaussian** (ICCVW 2025) | incomplete cross-view fusion | context-aware fusion | mean 변형 | 법칙 ② | 포지셔닝만 |
 
 **부검 가능 기준**: 처방이 "per-view feature 집합 → SP feature/score" 의 aggregation rule 로 환원되는 family (C1, C2, C3) 만 dump 재사용으로 충실하게 재현 가능. 구조/표현 교체 family (C4, C5) 는 정직하게 "직접 비교 불가, 단 object-당-1-vector 가정을 공유하므로 법칙 적용" 으로 related work 에서 처리.
+
+### 1.0 기존 paper 별 차별화 질문
+
+P1-E 의 목적은 단순히 "저 방법도 낮다"를 보이는 것이 아니다. 각 paper 의 fix 가 **무엇을 실제로 고쳤고, 무엇을 문제정의에서 놓쳤는지**를 분리한다.
+
+| Method | 그들이 고친 것 | 숨은 가정 | 우리가 물을 질문 | 놓쳤을 가능성이 큰 부분 |
+|---|---|---|---|---|
+| **VALA** | visibility gate + geometric median 으로 noisy/occluded view 를 줄이고 robust representative feature 를 만듦 | 실패 view 는 outlier 에 가깝고, 더 robust 한 consensus 가 더 좋은 대표가 된다 | robust/gating 이 phantom 을 회복하는가, 아니면 easy consensus 만 더 안정화하는가? | query-conditioned minority evidence. coherent-plausible wrong SP 는 outlier 가 아니므로 median 이 제거하지 못함 |
+| **Beyond Averages** | bag/top-k 로 single average bottleneck 을 완화 | query-time max/top-k 가 소수 증거를 살리면 평균보다 낫다 | phantom gain 이 easy regression 을 초과하는가? k=1/top-k 가 정말 free lunch 인가? | query selection 의 제로섬. lucky wrong view 를 막는 guard 부재 |
+| **ReLaGS ROFA** | noisy SAM mask / 극단 viewpoint 를 z-score outlier 제거로 완화 | bad view 는 통계적 outlier 로 보인다 | phantom 이 ROFA 로 사라지는가? | 구조적 다수결 문제. 실제로 phantom median 효과 0, 구출 1/20 |
+| **Segment then Splat** | per-view lifting 을 object-first reconstruction 으로 우회 | object discovery/tracking 이 충분하고, object embedding top1 retrieval 이 안정적이다 | object-first 가 phantom 을 제거하는가, 아니면 missing/merge-split/CLIP association failure 로 실패 위치를 옮기는가? | final query selection 과 single-object-embedding bottleneck. object oracle 과 top1 association gap |
+
+이 표의 논문용 표현: **기존 논문은 average 를 고쳤고, 우리는 average 가 언제 맞고 언제 틀리는지를 정의한다.**
+
+### 1.1 오픈소스 직접 실험 가능성 triage (2026-06-15 확인)
+
+> 목적: P1-A 의 family-level 부검을 **per-paper 실측**으로 격상할 수 있는 후보를 선별한다. 기준은 (1) 공식/실사용 가능 코드 존재, (2) LERF-OVS 또는 유사 3DGS open-vocab evaluation 경로 존재, (3) 우리 진단 스택(B7/A4/joint 2x2 또는 그 변형)을 붙일 수 있는가.
+
+| 우선순위 | 모델 | 코드/실험 가능성 | 우리에게 의미 | 예상 비용/리스크 | 판정 |
+|---|---|---|---|---|---|
+| **0** | **ReLaGS / ROFA** | 이미 로컬에서 자체 partition+ROFA replay, G1-G4, B7/A4 완료 | THGS 밖에서 메커니즘 재현을 이미 제공한 강한 anchor | 완료 | **완료된 비교군** |
+| **1** | **VALA** | 공식 project page + GitHub 공개. README 기준 LERF_OVS dataset, SAM+CLIP feature extraction, `run_lerf_3d.sh`, `eval_lerf_ovs_3d.sh` 경로 있음 | C1 robust-statistics family 의 실제 paper 구현. 우리가 CA-1 에서 근사한 geometric median/gating 을 per-paper 실측으로 검증 가능 | env 구축 + feature extraction/training. sm_120 호환성 점검 필요. 그래도 LERF_OVS 경로가 있어 가장 직접적 | **P1-E 최우선** |
+| **2** | **OpenSplat3D** | 로컬 `opensplat3d` clone/env 검증 완료. `md/OpenSplat3D/opensplat3d_setup_verification.md` 기준 imports/checkpoints/native diagnostic 준비됨 | C6 query-agnostic visibility-top view/MasQCLIP 계열 자연 실험. "query-topk 가 아니면 소수파 매장이 남는가" 를 검정 가능 | 학습 4 scenes + diagnostic. 환경은 이미 해결, 실험만 남음 | **실험 가능, P1-E/P4 교차 후보** |
+| **3** | **Segment then Splat** | 공식 project page + GitHub 공개. README 기준 LERF-OVS preprocessed dataset/tracking 결과와 evaluation 경로 제공 | C5 구조 교체 family. "object-first 로 per-view lifting 문제를 정말 우회하는가" 를 확인 가능 | object tracking/object-specific init 가 README 에서 "To be verified". 학습 40k iter 등 비용 높음. 출력 구조가 THGS식 SP rank 진단과 다르므로 diagnostic adapter 필요 | **가능하지만 고비용** |
+| **4** | **Beyond Averages** | arXiv/CatalyzeX 확인 결과 현재는 공식 코드 링크가 바로 보이지 않고 "Request Code" 상태 | C2 bag-of-embeddings family 의 직접 구현이면 매우 중요. 현재는 우리가 CA-2 top5/qmax1 rule 로 faithful family 부검을 이미 수행 | 공식 코드 없으면 per-paper 실험 불가. 저자 repo 재확인 또는 직접 구현은 가능하나 "official" 은 아님 | **공식 코드 확인 전 보류** |
+| **5** | **OpenInsGaussian** | arXiv 는 확인되나 공식 코드 링크는 현재 검색에서 미확인 | C7 context-aware cross-view fusion, mean 변형 family. 있으면 좋은 추가 비교군 | 코드 없으면 실행 불가. 벤치/출력 프로토콜 확인 필요 | **보류** |
+| **6** | **Polysemy / ExtrinSplat** | 카탈로그에 있는 명칭 기준 공식 코드/논문 페이지를 현재 검색에서 안정적으로 특정하지 못함 | 표현 교체/text-side family 라 직접 replay 가 원래도 어려움 | 식별부터 필요 | **보류/재확인 필요** |
+
+**내 우선순위**:
+
+1. **VALA 먼저** — 문제 주장과 처방이 우리 P1-A 의 robust-family 부검과 가장 직접적으로 겹친다. 성공하면 "family 근사" 를 "실제 paper" 로 격상할 수 있다.
+2. **OpenSplat3D 다음** — 이미 로컬 환경이 준비되어 있어 실행 리스크가 낮고, THGS/ReLaGS 와 다른 feature-splatting/visibility-top family 자연 실험이 된다.
+3. **Segment then Splat 는 세 번째** — 구조 교체 family 라 논문 방어력은 크지만, setup/tracking/training/diagnostic adapter 비용이 높다.
+4. **Beyond Averages 는 공식 코드가 나오면 즉시 상향** — 지금은 CA-2 rule 부검으로 대체하고, official code availability 를 계속 감시한다.
+
+**P1-E 최소 성공 조건**:
+
+- VALA 또는 OpenSplat3D 중 하나를 LERF-OVS 4 scenes 에서 원저자 평가 경로로 재현.
+- 그 출력에 대해 최소한 per-prompt actual mask IoU + oracle/actual gap 을 계산.
+- 가능하면 B7/A4/joint 2x2 를 붙여 **per-paper phantom 비율**을 산출.
 
 ## 2. 부검 실험 설계 (CA-1, CA-2)
 
@@ -127,3 +182,4 @@ Taxonomy 가 도출하는 예측 (빗나가면 taxonomy 수정 대상이며 그�
 | 2026-06-12 | **v1.1** | md/hypotheses/ 로 통합. "부검 = method 요구사항 명세" 역할 명시, R11 → 설계 제약 변환 표 추가 |
 | 2026-06-12 | **v1.2** | 이 문서 = **P1-A**. P1 이 문제 구체화 phase 전체로 확장됨에 따라 P1-B (부재 쿼리)/C (E1)/D (E2)/E (VALA·StS 코드 직접 실험) 는 [p1_problem_experiments.md](p1_problem_experiments.md) 로 — C1 (VALA)/C5 (StS) 의 "포지셔닝만" 한계는 P1-E 가 추후 해소 예정 |
 | 2026-06-12 | **P1-A 실행 완료** | gate 0 mismatch ×2 + mask 재현 차이 0.0. **R11-a 부분 적중** (median 본체 적중, gm_g 가 ReLaGS 5/20 경계 초과) · **R11-b 빗나감 (예측보다 나쁨** — unweighted median 유해 −12/−9**)** · **R11-c 빗나감 (회복 절** — k=1 은 회복도 반감**)** · **R11-d 적중 (전 변형 R9 bar FAIL)**. 거울상 구도 확정: robust=easy만 (gm_g +1.2/−1.8), selection=phantom만 (top5 +19.9/−9.8). §4·§5 표 기입 |
+| 2026-06-15 | **regime-confusion framing 추가** | 기존 paper 의 "average 가 문제" 관찰을 수용하되, 우리의 차별점을 **easy/consensus regime vs phantom/minority-evidence regime 을 구분하지 못하는 문제**로 재정의. VALA/Beyond Averages/ReLaGS/StS 별 "고친 것·숨은 가정·놓친 것" 표 추가 |
